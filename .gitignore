@@ -1,0 +1,43 @@
+# Python caches and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environments and tooling state
+.venv/
+venv/
+env/
+.env
+.env.*
+.playwright-cli/
+
+# Node tooling (user guide generation)
+node_modules/
+
+# Generated build and release output
+build/
+dist/
+release/
+packaging/version_info.txt
+
+# Local runtime data and editor settings
+*.log
+.vscode/
+.idea/
+.trae/
+.artifacts/
+DEBUG.md
+debug/
+.ui-review*
+
+# WorkBuddy workspace memory (agent working notes, not source)
+.workbuddy/
+
+# Windows explorer metadata
+Thumbs.db
+desktop.ini
