@@ -27,7 +27,6 @@ CALL_QUEUED = "queued"
 CALL_RUNNING = "running"
 CALL_DONE = "done"
 CALL_FAILED = "failed"
-CALL_CANCELLED = "cancelled"
 CALL_RUNNING_STATES = frozenset({CALL_QUEUED, CALL_RUNNING})
 
 # 合法条目转换表

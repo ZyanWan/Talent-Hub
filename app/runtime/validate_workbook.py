@@ -398,15 +398,6 @@ def validate_workbook_detailed(path: Path) -> tuple[list[str], list[str]]:
         wb.close()
 
 
-def validate_workbook(path: Path) -> list[str]:
-    """Compatibility wrapper returning only blocking validation errors."""
-    try:
-        errors, _ = validate_workbook_detailed(path)
-        return errors
-    except WorkbookInspectionError as exc:
-        return [str(exc)]
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate talent hub workbook.")
     parser.add_argument("workbook", type=Path)
