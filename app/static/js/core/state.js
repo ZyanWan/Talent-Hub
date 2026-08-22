@@ -1,6 +1,6 @@
 "use strict";
 
-// 全局状态单对象。字段归属约定见 ARCHITECTURE.md「前端模块化」一节：
+// 全局状态单对象。字段归属约定见 SOURCE_MAP.md「前端模块化」一节：
 // 各模块只读写自己的字段，禁止跨模块写他人字段。
 export const state = {
   language: localStorage.getItem("talentHub.language") === "en" ? "en" : "zh-CN",

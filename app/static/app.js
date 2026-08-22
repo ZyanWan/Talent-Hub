@@ -1,7 +1,7 @@
 "use strict";
 
 // 前端模块化入口：仅负责装配各模块并启动。
-// 模块布局见 ARCHITECTURE.md「前端模块化」一节。
+// 模块布局见 SOURCE_MAP.md「前端模块化」一节。
 
 import { $ } from "./js/core/dom.js";
 import { t } from "./js/core/i18n.js";

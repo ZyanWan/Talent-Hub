@@ -1,6 +1,6 @@
-# Talent Hub 项目架构与变更影响指南
+# Talent Hub 源码地图与变更影响指南
 
-> 本文面向维护者和 AI 编程助手，目标不是逐行解释代码，而是明确数据如何流动、状态如何变化、模块如何互相约束，以及修改某处时必须同步检查哪些位置。
+> 本文是对当前源码实现的事实映射，不是预设架构蓝图。它面向维护者和 AI 编程助手，目标不是逐行解释代码，而是明确数据如何流动、状态如何变化、模块如何互相约束，以及修改某处时必须同步检查哪些位置。
 >
 > 维护原则：任何改动都先定位“数据来源 → 中间状态 → 持久化 → API 输出 → 前端消费 → 验证契约 → 发布产物”的完整链路，避免局部修改造成跨层失配。
 
@@ -27,7 +27,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | `app/main.py` | 应用装配、路由、令牌中间件、上传限制、下载和预览、服务启动 | 前端全部 API、仓储、筛选引擎、电话处理器 |
 | `app/config.py` | 数据目录、配置模型、DPAPI、配置迁移和公开配置 | 模型调用、ASR、前端设置、发布运行环境 |
 | `app/models.py` | 筛选（含硬性门槛判定）、证据、电话摘要（动态章节/软性观察/快筛问答）的 Pydantic 契约 | Prompt 输出、持久化 JSON、Excel、前端字段 |
-| `app/repository.py` | 岗位任务 JSON、文件目录、归档、删除、路径和文件名安全 | `main.py`、`pipeline.py`、任务恢复 |
+| `app/repository.py` | `JsonStore` 通用 JSON 仓储、岗位任务 JSON、文件目录、归档、删除、路径和文件名安全 | `main.py`、`pipeline.py`、`call_repository.py`、任务恢复 |
 | `app/call_repository.py` | 电话任务（含 soft_skill_focus、soft_skill_dimensions、job_id）、音频与条目持久化 | `main.py`、`phone_screening.py`、前端电话页 |
 | `app/llm.py` | OpenAI 兼容接口、JSON 提取、重试、取消 | 筛选标准、候选人评估、横向对比、电话整理 |
 | `app/pipeline.py` | 简历筛选主流程、证据守卫、续跑、Excel 载荷 | 任务状态、结果 JSON、工作簿、前端进度 |
@@ -37,7 +37,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | `app/runtime/validate_workbook.py` | Excel 结构、跨表关系和安全校验 | `pipeline.py`、交付是否完成 |
 | `app/runtime/workbook_contract.py` | 五表名称、表头、枚举和格式契约 | 构建器、校验器、验证、业务输出 |
 | `app/runtime/call_state.py` | 电话条目状态机和中断收敛 | `phone_screening.py`、电话重试和取消 |
-| `app/runtime/speech_to_text.py` | 火山 ASR 请求和转写渲染 | 电话处理器、ASR 验证 |
+| `app/runtime/speech_to_text.py` | 火山 ASR 请求、音频输入校验、请求参数和转写渲染 | 电话处理器、ASR 验证 |
 | `app/runtime/phone_screening.py` | 电话处理、事实与软性观察双重守卫、软性 8 维度框架注入、四层 narrative 渲染（客观记录/概述/观察/快筛详情）、Markdown | 电话任务状态、摘要文件、前端电话详情 |
 | `app/static/index.html` | 页面结构、对话框和 DOM 锚点 | `js/` 模块、`styles.css`、首页验证 |
 | `app/static/app.js` | 前端模块化入口：imports → 各模块 `init()` → `bootstrap()` | `js/` 模块、`shell.js` |
@@ -47,8 +47,8 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | `app/static/js/views/` | screening（筛选四视图）、phone（电话确认）、history（历史对话框，Job+Call 共用） | 后端路由、JSON 字段、状态枚举 |
 | `app/static/styles.css` | 布局、响应式、状态样式 | HTML class、JS 动态 class |
 | `launcher.py` | PyInstaller 薄启动入口 | `app.main.main`、打包配置 |
-| `build_windows.ps1` | PyInstaller、许可证、烟测、安装器编排 | 版本、发布目录、packaging 脚本 |
-| `verify_windows_release.ps1` | 发布 EXE 的启动和首页烟测 | `main.py` 参数、`/health`、首页结构 |
+| `scripts/build_windows.ps1` | PyInstaller、图标生成、许可证、烟测、安装器编排（可跳过烟测/安装器） | 版本、发布目录、packaging 文件 |
+| `scripts/verify_windows_release.ps1` | 发布 EXE 的启动、临时数据目录和首页烟测 | `main.py` 参数、`/health`、首页结构 |
 
 ### 2.1 前端模块化约定
 
@@ -69,7 +69,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
   | compare | compareSelection、compareCancelKey |
   | preview | previewKind、previewPayload、previewSheetIndex、previewRequest |
 
-- `core/router.js` 集中视图切换与轮询生命周期：视图注册 `{ enter, exit }`，`show(name)` 负责「离开旧视图 → 隐藏全部 section → 进入新视图」。轮询互斥约定：**每个视图只在自己的 `exit` 里停止本视图的轮询字段**（screening 停 `state.pollTimer`、phone 停 `state.callPollTimer`，见上表归属），由「同一时刻仅一个视图激活」天然保证互斥，视图之间无需互相感知；新增视图只需在自己的 `exit` 停自己的轮询即可，无需改动既有视图。`enter` 仅在需要进入时启动轮询的场景使用。轮询回调通过 `currentView()` 判断是否丢弃过期结果，不再读取 `phoneView` 的 hidden 状态。
+- `core/router.js` 集中视图切换与轮询生命周期：视图注册 `{ enter, exit }`，`show(name)` 负责「离开旧视图 → 隐藏全部 section → 进入新视图」。轮询互斥约定：**每个视图主要在自己的 `exit` 里停止本视图的轮询字段**（screening 停 `state.pollTimer`、phone 停 `state.callPollTimer`，见上表归属），由「同一时刻仅一个视图激活」天然保证互斥；`resetWorkspace()` 和退出应用流程存在防御性跨轮询清理。新增视图只需在自己的 `exit` 停自己的轮询即可，不应新增常规跨视图感知。`enter` 仅在需要进入时启动轮询的场景使用。轮询回调通过 `currentView()` 判断是否丢弃过期结果，不再读取 `phoneView` 的 hidden 状态。模块局部 UI 状态（如电话软性维度选择、岗位导入序号、音频 Blob 缓存）不进入全局 `state` 表。
 - `i18n.onChange()` 是语言切换广播：各模块在 `init()` 注册自己的重渲染监听，`setLanguage` 只写 `state.language` + 持久化 + 广播，不再直接调用各视图渲染函数。
 
 新增页面（视图或对话框）的标准流程：① 在 `index.html` 加 `<section>`/`<dialog>` 及元素；② 新建模块文件，提供渲染函数 + `init()`（事件绑定）+ 双语 i18n key；③ 在 `app.js` 入口加一行 import + `init()` 调用；④ 不触碰其他模块，跨模块数据只走显式 import 的接口。
@@ -80,11 +80,11 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 
 以下为本项目稳定落地的 UI 行为约定，改动时应保持一致，避免风格分裂：
 
-- **模态框动画收敛**：五个居中弹窗（settings/resume/preview/compare/confirm）的动画声明统一走「公共动效组」分组规则（淡入 + 上移 + 微缩放），各 dialog 类只保留尺寸/边框/圆角差异；`history-dialog` 抽屉（X 轴滑入）与 `confirm-dialog` 更暗遮罩（.44）是刻意差异，保留独立覆盖。JS 侧所有 dialog 统一 `showModal()` + 双 rAF 加 `is-visible` + `transitionend` 关闭。
+- **模态框动画收敛**：居中弹窗（settings/resume/preview/compare/callItemDetail/confirm）的动画声明统一走「公共动效组」分组规则（淡入 + 上移 + 微缩放），各 dialog 类只保留尺寸/边框/圆角差异；`callItemDetail` 复用 `preview-dialog` 样式但属于编辑类；`history-dialog` 抽屉（X 轴滑入）与 `confirm-dialog` 更暗遮罩（.44）是刻意差异，保留独立覆盖。JS 侧大多数 dialog 采用 `showModal()` + 延迟加 `is-visible` + 过渡后关闭；确认删除框存在直接 `.close()` 的成功路径。
 - **遮罩点击关闭按误触成本分级**：编辑类（settings / resume / callItemDetail）只支持「关闭按钮 + ESC」退出（误触会丢未保存输入或打断录音播放）；查看类（preview / compare / history）保留点遮罩关闭；confirm 删除框本就不支持。新增编辑类 dialog 时应默认禁遮罩关闭。
 - **下拉统一走 `createCustomSelect()`**（`core/customSelect.js`）：原生 `<select>` 弹层无法做 CSS 过渡动画，全站下拉统一改用该组件——隐藏原生 select 做值载体（`value` 读写与 `change` 监听零改动），JS 从 `select.options` 渲染菜单，带展开/收起过渡、键盘导航（方向键/Enter/Space/Tab/ESC）、方向自适应（内部 `measureSelectFlip` 按最近滚动容器判断向上/向下弹出，菜单限高 300px 内部滚动）、语言切换自动重建。新增下拉一律复用组件，禁止手写第二份逻辑。
 - **页面滚动条 gutter 恒定**：`html` 使用 `scrollbar-gutter: stable`（`@supports` 包裹 + `overflow-y: scroll` 兜底），结果页 ↔ 新建页切换不因滚动条出现/消失产生内容区宽度突变。
-- **视图切换过渡**：5 个 section 与结果页配套元素（`#resultActions`、`#appendResumesButton`）统一 `view-in` 纯淡入动画（出现侧，`prefers-reduced-motion` 豁免）；消失侧为瞬间隐藏（纯 CSS 边界，如需交叉淡化需 View Transition API）。
+- **视图切换过渡**：5 个 section 与结果页配套元素（`#resultActions`、`#appendResumesButton`、`#appendCallAudioButton`）统一 `view-in` 纯淡入动画（出现侧，`prefers-reduced-motion` 豁免）；消失侧为瞬间隐藏（纯 CSS 边界，如需交叉淡化需 View Transition API）。
 
 ## 3. 运行时总拓扑
 
@@ -258,8 +258,8 @@ POST /start（标准已就绪）
 
 ```text
 pipeline.extract_document()
-  ├─ PDF → extract_file(pypdf → pdfplumber) → 不足时 Tesseract OCR
-  ├─ DOCX → ZIP 中 word/document.xml
+  ├─ PDF → pypdfium2 页数上限检查（MAX_PDF_PAGES=100）→ extract_file(pypdf → pdfplumber) → 不足时 Tesseract OCR
+  ├─ DOCX → ZIP 中 word/document.xml（XML 内容上限 20 MB）
   ├─ TXT/MD → 多编码读取
   └─ 图片 → Tesseract OCR
 ```
@@ -333,7 +333,7 @@ pipeline.extract_document()
 - 当前 JD 与生成标准时的 JD 一致；
 - 已保存简历哈希与当前未冲突；
 - `评估结果.json` 可用；
-- 结果中的 `source_file` 对应已完成文件。
+- 结果中的 `source_file` 用于跳过同名已完成简历；当前实现不额外过滤已从任务中移除的旧结果。
 
 修改结果文件名、`results_meta`、`source_file` 或检查点格式时，必须为老任务恢复考虑兼容路径，并运行断点续跑与追加简历验证。
 
@@ -414,7 +414,7 @@ CandidateEvaluation[] + ScreeningCriteria
 
 ## 9. 电话确认端到端数据流
 
-电话链路保持单次模型调用：模型一次生成完整 `CallSummary`；程序事实守卫与软性观察守卫负责核验引用并降级无依据内容；人工编辑是最终校正边界。不存在二次模型复核。
+电话链路保持单次模型调用：模型一次生成完整 `CallSummary`；程序事实守卫与软性观察守卫负责核验引用并降级无依据内容；人工编辑是最终校正边界。不存在二次模型复核。`CallRepository` 复用 `repository.py` 的 `JsonStore`，因此电话任务的 JSON 保存、归档、恢复、删除和锁语义与岗位任务共享同一底层仓储规则。
 
 ### 9.1 创建和上传
 
@@ -555,6 +555,8 @@ draft → running → done
 failed/cancelled → process → running
 ```
 
+`call_state.py` 还定义了任务级 `queued`，并将其纳入运行态集合；当前 `CallProcessor.start()` 直接把任务置为 `running`，没有单独排队阶段。
+
 条目状态：
 
 ```text
@@ -564,6 +566,8 @@ queued → transcribing → summarizing → done
 failed → queued
 transcribing/summarizing --取消或进程中断→ queued
 ```
+
+`call_state.py` 还定义了条目级 `cancelled` 终态；当前处理器取消收敛时把中间态条目回滚为 `queued`，通常不写入该状态。
 
 重要区别：
 
@@ -616,7 +620,8 @@ C不推进
 
 ```text
 id, title, job_title, job_id, soft_skill_focus, soft_skill_dimensions,
-status, stage, updated_at, archived_at, errors, items
+status, stage, progress, completed, total, created_at, updated_at,
+archived_at, errors, items
 ```
 
 条目：
@@ -630,6 +635,7 @@ progress, error, summary
 
 ```text
 candidate_name, call_date, narrative,
+remark_sections[].{title,bullets}, soft_skill_summary_title,
 soft_skill_summary, soft_skill_observations[].{name,dimension,signal,question,observation,quote,confidence,fact_id},
 qa_records[].{question,answer},
 fields[].{key,label,value,status,fact_ids,note},
@@ -668,7 +674,7 @@ FastAPI 异步请求
 
 - `CallRepository.update_item()` 必须在锁内重新读取最新任务，只更新目标条目，避免并发覆盖其他条目。
 - 同任务简历上传锁保护 `resume_files` 和 `resume_hashes` 的读改写。
-- 原子文件替换保护 JSON 和 Excel 不出现半写入状态。
+- `JsonStore` 与逐份候选人检查点使用原子 JSON 写入，Excel 使用临时文件替换；最终完成阶段仍有少量结果/解析清单普通写入路径，修改时不要扩大非原子写范围。
 - 候选人失败隔离：单份失败不能丢失其他结果。
 - 任务级取消隔离：取消任务 A 不能中止任务 B 的模型客户端。
 - 对比缓存必须包含任务 ID 和结果文件哈希，避免跨任务污染或结果变化后返回旧排序。
@@ -716,9 +722,9 @@ FastAPI 异步请求
 | ASR 请求参数或响应结构 | `speech_to_text.py`、电话处理器、设置的 ASR 状态、STT 验证 |
 | 首页 DOM ID 或 class | 前端 js/ 模块的节点查询和事件、`styles.css`、首页验证、发布烟测 |
 | 前端本地存储键 | 初始化恢复、切换工具、新建任务、历史恢复 |
-| 版本号 | 仅 `app/__init__.py` 的 `__version__`；`build_windows.ps1` 自动同步到生成的 `version_info.txt` 与 `.iss`（`/DMyAppVersion`） |
-| 启动参数或 `/health` | `main.py`、`launcher.py`、`verify_windows_release.ps1`、重复实例探测 |
-| 清理目录规则 | `.gitignore`（`release/`、`build/`、`dist/`、`.workbuddy/` 已忽略）、`build_windows.ps1` 拒绝覆盖已存在 release 目录 |
+| 版本号 | 仅 `app/__init__.py` 的 `__version__`；`scripts/build_windows.ps1` 自动生成 `packaging/version_info.txt`，并通过 Inno Setup `/DMyAppVersion` 参数把版本传给静态 `.iss` |
+| 启动参数或 `/health` | `main.py`、`launcher.py`、`scripts/verify_windows_release.ps1`、重复实例探测 |
+| 清理目录规则 | `.gitignore`（`release/`、`build/`、`dist/`、`.workbuddy/`、`packaging/version_info.txt` 已忽略）、`scripts/build_windows.ps1` 拒绝覆盖已存在的版本 portable/build 子目录 |
 
 ## 15. 修改前的强制检查流程
 
@@ -756,7 +762,7 @@ FastAPI 异步请求
 维护时应尽量维持以下“单一事实来源”：
 
 - 配置结构：`AppSettings`。
-- 应用版本号：`app/__init__.py` 的 `__version__`（`version_info.txt` 与 `.iss` 为构建时派生）。
+- 应用版本号：`app/__init__.py` 的 `__version__`（`packaging/version_info.txt` 为构建时派生，`packaging/talent-hub.iss` 通过构建参数接收版本）。
 - 简历和电话业务结构：`app/models.py`。
 - 电话最终摘要：首轮守卫后的 `CallSummary`；人工编辑以 `PUT /api/calls/<id>/items/<item_id>` 覆盖，编辑后的值仍持久化到同一 `summaries/*.json`。
 - 电话事实引用身份：`CallFact.id`。

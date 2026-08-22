@@ -32,7 +32,11 @@ packaging/version_info.txt
 .trae/
 .artifacts/
 DEBUG.md
-debug/
+debug/*
+!debug/prompt_ab/
+debug/prompt_ab/*
+!debug/prompt_ab/eval_prompt.py
+!debug/prompt_ab/transcript_mock.txt
 .ui-review*
 
 # WorkBuddy workspace memory (agent working notes, not source)
