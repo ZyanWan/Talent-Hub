@@ -1,8 +1,8 @@
-#define MyAppName "招聘工作台"
+#define MyAppName "Talent Hub"
 #ifndef MyAppVersion
 #define MyAppVersion "0.1.0"
 #endif
-#define MyAppPublisher "Talent Hub"
+#define MyAppPublisher "Talent Hub"
 #define MyAppExeName "TalentHub.exe"
 
 [Setup]

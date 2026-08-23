@@ -23,23 +23,25 @@
           </svg>
         </button>
         <button class="icon-button" id="newJobButton" type="button" title="新建" aria-label="新建"
-          data-i18n-title="newScreening" data-i18n-aria="newScreening">
+          data-i18n-title="newTool" data-i18n-aria="newTool">
           <svg aria-hidden="true" viewBox="0 0 24 24">
             <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
-        <div class="create-menu" id="createMenu" hidden>
-          <button type="button" data-menu="screening">
+        <div class="tool-strip" id="toolStrip" hidden>
+          <button type="button" data-tool="screening" title="简历筛选" aria-label="简历筛选"
+            data-i18n-title="toolScreening" data-i18n-aria="toolScreening">
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="M8 3v3M16 3v3M4 6h16v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
               <path d="M9 11h6M9 15h5" />
-            </svg><span data-i18n="newScreening">新建筛选任务</span>
+            </svg>
           </button>
-          <button type="button" data-menu="phone">
+          <button type="button" data-tool="phone" title="电话确认" aria-label="电话确认"
+            data-i18n-title="toolPhone" data-i18n-aria="toolPhone">
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path
                 d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z" />
-            </svg><span data-i18n="phoneScreening">电话确认</span>
+            </svg>
           </button>
         </div>
         <div class="brand-wordmark"><span class="brand-title" data-i18n="appName">招聘工作台</span></div>

@@ -39,9 +39,10 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | `app/runtime/call_state.py` | 电话条目状态机和中断收敛 | `phone_screening.py`、电话重试和取消 |
 | `app/runtime/speech_to_text.py` | 火山 ASR 请求、音频输入校验、请求参数和转写渲染 | 电话处理器、ASR 验证 |
 | `app/runtime/phone_screening.py` | 电话处理、事实与软性观察双重守卫、软性 8 维度框架注入、四层 narrative 渲染（客观记录/概述/观察/快筛详情）、Markdown | 电话任务状态、摘要文件、前端电话详情 |
+| `app/resources/references/` | 运行时参考规则库：证据规则、Excel/PDF 规则、易错点和软性素质框架 | `pipeline.py`、`phone_screening.py`、Prompt 与守卫规则 |
 | `app/static/index.html` | 页面结构、对话框和 DOM 锚点 | `js/` 模块、`styles.css`、首页验证 |
 | `app/static/app.js` | 前端模块化入口：imports → 各模块 `init()` → `bootstrap()` | `js/` 模块、`shell.js` |
-| `app/static/shell.js` | 顶栏、语言切换、新建菜单、退出、bootstrap | `js/` 模块 |
+| `app/static/shell.js` | 顶栏、语言切换、工具切换条、退出、bootstrap | `js/` 模块 |
 | `app/static/js/core/` | dom（`$`）、state（全局单对象）、api（token+fetch）、i18n（messages+t+语言广播）、router（视图路由与生命周期）、utils（格式化/标签/通用渲染、`measureSelectFlip`）、customSelect（自定义下拉公共组件 `createCustomSelect`） | 全部前端模块、契约验证 |
 | `app/static/js/dialogs/` | settings、resume（简历工作台与预览）、preview（产物预览）、compare（横向对比） | 后端路由、JSON 字段、状态枚举 |
 | `app/static/js/views/` | screening（筛选四视图）、phone（电话确认）、history（历史对话框，Job+Call 共用） | 后端路由、JSON 字段、状态枚举 |
@@ -49,6 +50,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | `launcher.py` | PyInstaller 薄启动入口 | `app.main.main`、打包配置 |
 | `scripts/build_windows.ps1` | PyInstaller、图标生成、许可证、烟测、安装器编排（可跳过烟测/安装器） | 版本、发布目录、packaging 文件 |
 | `scripts/verify_windows_release.ps1` | 发布 EXE 的启动、临时数据目录和首页烟测 | `main.py` 参数、`/health`、首页结构 |
+| `debug/` | 非生产链路的调试和实验辅助目录 | Prompt 对比、问题复现、维护记录 |
 
 ### 2.1 前端模块化约定
 
@@ -60,7 +62,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 
   | 归属 | state 字段 |
   | --- | --- |
-  | shell | language、createMenuOpen |
+  | shell | language、toolStripOpen |
   | settings | settings、clearAsrPending |
   | history | jobs、archivedJobs、historyScope、historyTotals、historyKind、historyLoading、storageStats、callTasks、callArchivedTasks、callScope、callTotals |
   | screening | currentJob、selectedResumes、resultFilter、liveResultKeys、criteriaBase、pendingDeleteJob、pollTimer |
@@ -596,6 +598,8 @@ id, title, status, stage, progress, completed, total,
 results, errors, elapsed_seconds,
 evaluation_started_at, updated_at, archived_at
 ```
+
+`reviewed` 是后端任务摘要和持久化字段，当前前端不直接依赖；如果未来前端展示复核/查看统计，再纳入前端依赖字段清单。
 
 候选人结果依赖字段：
 

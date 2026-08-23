@@ -5,7 +5,7 @@ import { state } from "./state.js";
 const messages = {
   "zh-CN": {
     documentTitle: "招聘工作台 · 让人才判断有据可循", appName: "招聘工作台", skipLink: "跳到主要内容",
-    openHistory: "打开最近任务", newScreening: "新建筛选", criteria: "筛选标准", appendResumes: "追加简历",
+    openHistory: "打开最近任务", newScreening: "新建筛选", newTool: "新建", toolScreening: "简历筛选", toolPhone: "电话确认", criteria: "筛选标准", appendResumes: "追加简历",
     workbook: "评估表格", languageLabel: "界面语言", connectionState: "模型连接状态",
     modelSettings: "模型配置", exitApp: "退出应用", jobTitle: "岗位候选人筛选",
     setupTitle: "让每一次人才判断，都有据可依", jobBriefText: "岗位说明文本",
@@ -123,7 +123,7 @@ const messages = {
   },
   en: {
     documentTitle: "Talent Hub | Evidence-led screening", appName: "Talent Hub", skipLink: "Skip to main content",
-    openHistory: "Open recent tasks", newScreening: "New screening", criteria: "Criteria", appendResumes: "Add resumes",
+    openHistory: "Open recent tasks", newScreening: "New screening", newTool: "New", toolScreening: "Resume screening", toolPhone: "Phone screening", criteria: "Criteria", appendResumes: "Add resumes",
     workbook: "Workbook", languageLabel: "Interface language", connectionState: "Model connection status",
     modelSettings: "Model settings", exitApp: "Exit application", jobTitle: "Candidate Screening",
     setupTitle: "Evidence-led talent decisions", jobBriefText: "Job brief text",

@@ -472,10 +472,12 @@ function renderCallDetail({ preservePlayback = false } = {}) {
   $("appendCallAudioButton").hidden = call.status !== "done" || Boolean(call.archived_at);
   // 轮询重画会重建整张卡片列表；重画前捕获浮层播放状态，重画后恢复，
   // 避免处理中刷新打断用户正在听的录音。仅轮询路径启用，其余渲染不做快照。
-  const playback = preservePlayback ? captureCallPlayback() : new Map();
+  const activeDetailOpen = Boolean(activeCallItemId && $("callItemDetail")?.open);
+  const refreshActiveDetail = !(preservePlayback && activeDetailOpen);
+  const playback = preservePlayback && refreshActiveDetail ? captureCallPlayback() : new Map();
   renderCallItems(call);
   renderErrors("callErrors", call.errors || []);
-  if (activeCallItemId) renderCallItemDetail(activeCallItemId, playback);
+  if (refreshActiveDetail && activeCallItemId) renderCallItemDetail(activeCallItemId, playback);
   if (running) startCallPolling();
 }
 

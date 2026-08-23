@@ -14,12 +14,12 @@ VSVersionInfo(
       StringTable(
         u'080404B0',
         [
-          StringStruct(u'CompanyName', u'Talent Hub'),
-          StringStruct(u'FileDescription', u'招聘工作台'),
+          StringStruct(u'CompanyName', u'Talent Hub'),
+          StringStruct(u'FileDescription', u'Talent Hub'),
           StringStruct(u'FileVersion', u'__VERSION__'),
           StringStruct(u'InternalName', u'TalentHub'),
           StringStruct(u'OriginalFilename', u'TalentHub.exe'),
-          StringStruct(u'ProductName', u'招聘工作台'),
+          StringStruct(u'ProductName', u'Talent Hub'),
           StringStruct(u'ProductVersion', u'__VERSION__')
         ]
       )

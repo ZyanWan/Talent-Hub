@@ -32,7 +32,7 @@ export const state = {
   clearAsrPending: false,
   pendingDeleteJob: null,
   criteriaBase: null,
-  createMenuOpen: false,
+  toolStripOpen: false,
   callTasks: [],
   callArchivedTasks: [],
   callScope: "recent",

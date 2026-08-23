@@ -59,15 +59,26 @@ export function setLanguage(language) {
   }
 }
 
-function toggleCreateMenu() {
-  const menu = $("createMenu");
-  menu.hidden = !menu.hidden;
-  state.createMenuOpen = !menu.hidden;
+function toggleToolStrip() {
+  const strip = $("toolStrip");
+  const opening = strip.hidden;
+  strip.hidden = !opening;
+  state.toolStripOpen = opening;
+  $("newJobButton").closest(".brand-group").classList.toggle("strip-open", opening);
+  $("newJobButton").classList.toggle("is-open", opening);
+  if (opening) {
+    const activeTool = localStorage.getItem("talentHub.activeTool") === "phone" ? "phone" : "screening";
+    for (const button of strip.querySelectorAll("button[data-tool]")) {
+      button.classList.toggle("active", button.dataset.tool === activeTool);
+    }
+  }
 }
 
-function closeCreateMenu() {
-  $("createMenu").hidden = true;
-  state.createMenuOpen = false;
+function closeToolStrip() {
+  $("toolStrip").hidden = true;
+  state.toolStripOpen = false;
+  $("newJobButton").closest(".brand-group").classList.remove("strip-open");
+  $("newJobButton").classList.remove("is-open");
 }
 
 async function exitApplication() {
@@ -131,21 +142,21 @@ export function init() {
     const button = event.target.closest("button[data-language]");
     if (button) setLanguage(button.dataset.language);
   });
-  $("newJobButton").addEventListener("click", toggleCreateMenu);
-  $("createMenu").addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-menu]");
+  $("newJobButton").addEventListener("click", toggleToolStrip);
+  $("toolStrip").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-tool]");
     if (!button) return;
-    closeCreateMenu();
-    if (button.dataset.menu === "phone") openPhoneView();
+    closeToolStrip();
+    if (button.dataset.tool === "phone") openPhoneView();
     else resetWorkspace();
   });
   document.addEventListener("click", (event) => {
-    if (state.createMenuOpen && !event.target.closest("#createMenu") && !event.target.closest("#newJobButton")) {
-      closeCreateMenu();
+    if (state.toolStripOpen && !event.target.closest("#toolStrip") && !event.target.closest("#newJobButton")) {
+      closeToolStrip();
     }
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.createMenuOpen) closeCreateMenu();
+    if (event.key === "Escape" && state.toolStripOpen) closeToolStrip();
   });
   document.addEventListener("click", (event) => {
     const button = event.target.closest("button");
