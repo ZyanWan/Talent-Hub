@@ -16,10 +16,7 @@ from pydantic import ValidationError
 from ..call_repository import CallRepository
 from ..config import AppSettings, SettingsStore
 from ..llm import LLMError, LLMRequestError, OpenAICompatibleClient
-from ..models import (
-    CallSummary,
-    SoftSkillObservation,
-)
+from ..models import CallSummary
 from . import call_state
 
 
@@ -33,7 +30,7 @@ CALL_FIELDS = [
     ("resume_clarification", "简历疑点澄清"),
 ]
 
-# 预设软性素质维度：前端提交 key，后端映射为中文规范名注入 prompt 与观察输出。
+# 预设软性素质维度：前端提交 key，后端映射为中文规范名注入 prompt。
 SOFT_SKILL_DIMENSIONS = {
     "passion": "热爱",
     "self_drive": "自驱",
@@ -76,7 +73,7 @@ BASE_SUMMARIZE_PROMPT = """你是资深招聘 HR 助理。把一次电话初筛�
 5. 格式：所有字段使用纯中文，不使用任何 Markdown 标记或强调符号；标题、章节名直接写文字本身，列表由程序统一渲染。
 6. 转写说明：转写中「说话人0」「说话人1」等是 ASR 说话人编号，其中一人是 HR、一人是候选人，请结合语境自行判断；输出中不得出现说话人编号和时间戳。转写可能含错字、同音词、口语重复，整理时忽略表达瑕疵，只提取信息内容。
 7. 内部字段（fields/facts）用于覆盖性检查：维度未问到填"通话未提及"，问到了但含糊不清填"含糊"；ref 必须逐字引用转写原文的连续原句片段（含 ASR 错字原样，不得修正、改写、概括），程序以转写原文为基准核对该线索，只用于程序侧核对，不得出现在说明文字里。
-8. 软性素质（如果输出）：先形成 soft_skill_observations 逐条观察——每项必须含触发问题 question（HR 提问原文）、候选人回答逐字 quote、观察结论 observation 三要素；再从有效观察中提炼 soft_skill_summary 概述，概述只概括已有证据支持的结论。观察须客观克制，既指出积极信号也明确指出风险信号——结论中如存在证据支持的局限或风险，必须一并指出，不得只报喜不报忧；不得使用"情商很高""人品可靠"等无行为依据的绝对人格标签；dimension 使用参考框架中的规范维度名，signal 只取「积极信号/风险信号」；quote 必须是候选人回答逐字原文，HR 的提问不能单独作为证据；不使用姓名、性别、年龄、民族、籍贯、婚育等受保护属性；无充分原文证据时两者可留空，不得强行凑项。
+8. 软性表现概述（必选分点）：soft_skill_summary 必须输出分点数组，每点是一条可直接写入 HR 整理记录的软性表现判断。它不是事实摘要、经历复述或优点评语，必须在同一句中同时包含软性判断和来自通话回答的具体依据；可基于表达结构、信息颗粒度、动机侧重、沟通配合、复盘深度、归因方式或协作方式作有限判断。优先覆盖被问到且有有效回答的软性维度，同时保留积极信号与非积极信号；非积极信号包括中性、含糊、局限、矛盾或风险表现，不要求写成正向结论，也不要用"未发现风险"替代具体观察。不要把普通应答、礼貌配合、能完成基本介绍拔高为明显优点；不要使用"整体较好""表现不错""沟通顺畅""暂未发现明显风险"等泛化评价。不输出问题、回答、引用、置信度或逐条观察明细；不使用姓名、性别、年龄、民族、籍贯、婚育等受保护属性。
 
 软性素质参考框架：
 {soft_skill_framework}
@@ -115,19 +112,8 @@ def summarize_user_prompt(
             }
         ],
         "soft_skill_summary_title": "软性概述章节标题（可选，如「软性表现概述」；留空程序使用默认标题）",
-        "soft_skill_summary": "几句话的软性表现概述，只能来自下方 soft_skill_observations 已支持的结论；无可靠观察则留空",
-        "soft_skill_observations": [
-            {
-                "id": "O1、O2……",
-                "name": "观察项名称",
-                "dimension": "所属维度（规范名或自定义）",
-                "signal": "积极信号 / 风险信号",
-                "question": "触发该观察的 HR 提问原文",
-                "observation": "客观的软性素质判断：基于问答证据推导性格特征与未来工作表现，明确指出风险信号，不只报喜不报忧",
-                "quote": "候选人回答逐字原文（必须能在转写原文中找到）",
-                "confidence": "高 / 中 / 低",
-                "fact_id": "对应候选人事实编号，如 F1",
-            }
+        "soft_skill_summary": [
+            "必填分点；可直接写入 HR 整理记录的软性表现判断；每点同时写判断和具体依据，覆盖积极与非积极信号，不写事实摘要或泛化优点评语"
         ],
         "fields": [
             {
@@ -161,7 +147,7 @@ def summarize_user_prompt(
         ]
     schema_text = json.dumps(schema, ensure_ascii=False, indent=2)
     qa_rule = (
-        "9. 快筛详情（qa_records）：把整通电话中 HR 提出的每个关键问题与候选人的回答逐条记录；"
+        "9. 可选快筛详情（qa_records）：把整通电话中 HR 提出的每个关键问题与候选人的回答逐条记录；"
         "question 保留 HR 提问的原文表达；answer 保留候选人的回答转写原文（逐字保留原话，不得改写、概括或拼接）；"
         "问题即使没有有效回答也应保留，answer 留空即可。\n"
     ) if include_qa_records else ""
@@ -376,38 +362,6 @@ def apply_call_guard(summary: CallSummary, transcript_text: str) -> CallSummary:
     return summary
 
 
-def apply_soft_skill_guard(summary: CallSummary, transcript_text: str) -> CallSummary:
-    """软性观察守卫：原文逐字回查 + 指向候选人事实；失败项剔除并写告警，不影响客观 Remark。
-
-    概述必须由通过守卫的详细观察支撑；全部观察被剔除时清空概述。
-    """
-    normalized_transcript = _normalize_for_match(transcript_text)
-    candidate_fact_ids = {
-        fact.id for fact in summary.facts if fact.speaker == "候选人" and fact.id
-    }
-    kept: list[SoftSkillObservation] = []
-    for obs in summary.soft_skill_observations:
-        problems: list[str] = []
-        if not (obs.name.strip() and obs.observation.strip() and obs.quote.strip() and obs.confidence):
-            problems.append("字段不完整")
-        else:
-            if _normalize_for_match(obs.quote) not in normalized_transcript:
-                problems.append("原文未在转写中核对通过")
-            if obs.fact_id not in candidate_fact_ids:
-                problems.append("未指向候选人发言的事实")
-        if problems:
-            summary.guard_warnings.append(
-                f"软性观察「{obs.name or obs.id or '未命名'}」未通过引用守卫（{'；'.join(problems)}），已剔除"
-            )
-        else:
-            kept.append(obs)
-    summary.soft_skill_observations = kept
-    if summary.soft_skill_summary.strip() and not kept:
-        summary.soft_skill_summary = ""
-        summary.guard_warnings.append("软性概述缺少通过守卫的详细观察支撑，已清空")
-    return summary
-
-
 def validate_call_structure(summary: CallSummary) -> CallSummary:
     """拒绝缺少动态 Remark 章节或结构化字段的空壳结果。"""
     if not summary.remark_sections:
@@ -423,47 +377,20 @@ def validate_call_structure(summary: CallSummary) -> CallSummary:
 
 
 def render_remark_narrative(summary: CallSummary) -> str:
-    """把结构化 Remark 与软性观察渲染为纯文本 narrative。
-
-    渲染顺序（四层，每层独立可取舍）：① 客观记录章节 → ② 软性表现概述 → ③ 软性素质观察
-    （问题 → 回答 → 观察）→ ④ 快筛详情（通篇问答原文）。所有层级使用纯文本表述，
-    不使用 #、*、_ 等 Markdown 标记。
-    """
+    """把结构化 Remark 与软性概述渲染为纯文本 narrative。"""
     lines = ["整理记录"]
-    # ① 客观记录：动态业务章节
     for section in summary.remark_sections:
         if not section.title.strip():
             continue
         lines.append("")
         lines.append(section.title.strip())
         lines.extend(f"- {bullet.strip()}" for bullet in section.bullets if bullet.strip())
-    # ② 软性表现概述
-    if summary.soft_skill_summary.strip():
+    summary_points = [point.strip() for point in summary.soft_skill_summary if point.strip()]
+    if summary_points:
         lines.append("")
         title = summary.soft_skill_summary_title.strip() or "软性表现概述"
         lines.append(title)
-        lines.append(summary.soft_skill_summary.strip())
-    # ③ 软性素质观察：问题 → 回答 → 观察
-    if summary.soft_skill_observations:
-        lines.append("")
-        lines.append("软性素质观察")
-        for obs in summary.soft_skill_observations:
-            lines.append("")
-            lines.append(obs.name.strip())
-            if obs.question.strip():
-                lines.append(f"我的问题：{obs.question.strip()}")
-            lines.append("")
-            lines.append("候选人回答：")
-            lines.append(f"“{obs.quote.strip()}”")
-            lines.append("")
-            lines.append(f"观察：{obs.observation.strip()}")
-            if obs.dimension.strip():
-                lines.append(f"维度：{obs.dimension.strip()}")
-            if obs.signal:
-                lines.append(f"信号：{obs.signal}")
-            if obs.confidence:
-                lines.append(f"置信度：{obs.confidence}")
-    # ④ 快筛详情：通篇问答原文
+        lines.extend(f"- {point}" for point in summary_points)
     if summary.qa_records:
         lines.append("")
         lines.append("快筛详情")
@@ -692,7 +619,7 @@ class CallProcessor:
         with self._lock:
             self._active_clients[client] = cancel_event
         try:
-            # 单次调用完成信息整理（结构化 Remark + 软性观察 + 内部事实）；
+            # 单次调用完成信息整理（结构化 Remark + 软性概述 + 内部事实）；
             # 长转写输出大，单次调用给足时间预算（至少 300s），减少超时重试
             summary, _ = self._validated_summarize(
                 client, text, candidate_name, soft_skill_focus, soft_skill_dimensions,
@@ -701,9 +628,8 @@ class CallProcessor:
             )
             summary.transcript = text
             summary.candidate_name = (summary.candidate_name or "").strip() or candidate_name
-            # 事实 ref 与软性 quote 均须逐字引用输入转写原文，统一以 ASR 原文核对（口径一致，避免误杀）
+            # 事实 ref 须逐字引用输入转写原文，统一以 ASR 原文核对（口径一致，避免误杀）
             summary = apply_call_guard(summary, text)
-            summary = apply_soft_skill_guard(summary, text)
             summary.narrative = render_remark_narrative(summary)
         finally:
             with self._lock:

@@ -153,20 +153,6 @@ class CallRemarkSection(BaseModel):
     bullets: list[str] = Field(default_factory=list)
 
 
-class SoftSkillObservation(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    id: str = ""
-    name: str = ""
-    dimension: str = ""
-    signal: Literal["积极信号", "风险信号"] = "积极信号"
-    question: str = ""  # 触发该观察的 HR 提问原文
-    observation: str = ""
-    quote: str = ""
-    confidence: Literal["高", "中", "低"] = "中"
-    fact_id: str = ""
-
-
 class CallQA(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -180,9 +166,8 @@ class CallSummary(BaseModel):
     candidate_name: str = ""
     call_date: str = ""
     remark_sections: list[CallRemarkSection] = Field(default_factory=list)
-    soft_skill_summary: str = ""
+    soft_skill_summary: list[str] = Field(default_factory=list)
     soft_skill_summary_title: str = ""
-    soft_skill_observations: list[SoftSkillObservation] = Field(default_factory=list)
     narrative: str = ""
     fields: list[CallField] = Field(default_factory=list)
     facts: list[CallFact] = Field(default_factory=list)
@@ -191,3 +176,12 @@ class CallSummary(BaseModel):
     doubts: list[str] = Field(default_factory=list)
     guard_warnings: list[str] = Field(default_factory=list)
     transcript: str = ""
+
+    @field_validator("soft_skill_summary", mode="before")
+    @classmethod
+    def coerce_soft_skill_summary(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value] if value.strip() else []
+        return value

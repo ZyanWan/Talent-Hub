@@ -80,8 +80,8 @@ Currently supported modules — more will follow:
 | Capability | Description |
 | --- | --- |
 | **Batch transcription** | Upload multiple recordings (m4a / wav / mp3 / ogg / opus) powered by Volcano Engine ASR. |
-| **AI summarization** | Produces structured notes with organized highlights, soft-skill observations, and optional Q&A detail (off by default for speed). |
-| **Dual guardrails** | Facts and soft-skill observations must trace back to the transcript; otherwise they are flagged as unconfirmed for HR to judge during review. |
+| **AI summarization** | Produces structured notes with organized highlights, bullet-point soft-skill summaries, and optional Q&A detail (off by default for speed). |
+| **Fact guardrails** | Fact references must trace back to the transcript; otherwise they are flagged as unconfirmed for HR to judge during review. |
 | **Manual review & download** | After per-candidate review, export a Markdown record for each candidate. |
 
 ## Technical highlights

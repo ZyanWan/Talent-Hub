@@ -457,15 +457,14 @@ POST /api/calls/<id>/process
      2. speech_to_text.transcribe_audio()
      3. render_transcript() → transcripts/<item_id>.txt
      4. transcribing → summarizing
-     5. AI 单次调用完成信息整理（CallSummary）：system prompt 注入软性 8 维度框架（soft-skill-framework.md），user prompt 携带选中的维度与自定义关注项；输出四层整理结构（客观记录章节/软性概述/软性观察三要素/快筛问答）；快筛问答（qa_records）按设置开关 `call_qa_records` 决定是否要求生成（默认关闭，关闭可大幅减少模型输出、显著提速）
+     5. AI 单次调用完成信息整理（CallSummary）：system prompt 注入软性 8 维度框架（soft-skill-framework.md），user prompt 携带选中的维度与自定义关注项；输出三层整理结构（客观记录章节/分点式软性概述/快筛问答）；快筛问答（qa_records）按设置开关 `call_qa_records` 决定是否要求生成（默认关闭，关闭可大幅减少模型输出、显著提速）
      6. validate_call_structure() 检查动态章节和字段完整性
      7. apply_call_guard() 校验事实引用并降级无依据字段
-     8. apply_soft_skill_guard() 校验软性观察原文并剔除无依据项
-     9. render_remark_narrative() 渲染统一 narrative
-    10. attach_fact_timestamps() 按 fact.ref 在转写文本/原始转写中定位录音时间区间，写入 facts[].start_time/end_time（程序计算，不依赖模型输出 timestamp）
-    11. summaries/<item_id>.json 和 .md
-    12. record.json 中对应条目写入 summary
-    13. summarizing → done
+     8. render_remark_narrative() 渲染统一 narrative
+     9. attach_fact_timestamps() 按 fact.ref 在转写文本/原始转写中定位录音时间区间，写入 facts[].start_time/end_time（程序计算，不依赖模型输出 timestamp）
+    10. summaries/<item_id>.json 和 .md
+    11. record.json 中对应条目写入 summary
+    12. summarizing → done
 ```
 
 录音回放定位：`GET /api/calls/{call_id}/items/{item_id}/audio` 按 token 校验后返回录音文件流（前端 fetch 为 Blob 播放，不新增存储）；事实时间戳由 `attach_fact_timestamps()` 在落盘前计算并持久化到 `facts[].start_time/end_time`，旧任务无时间戳时前端降级为不可点击。
@@ -474,7 +473,7 @@ POST /api/calls/<id>/process
 
 | 阶段 | 模型输入 | 模型输出 | 程序责任 |
 | --- | --- | --- | --- |
-| 整理 | ASR 转写、可选软性关注项 | 结构化 `CallSummary`（不含 narrative；qa_records 按开关生成） | 校验结构完整性并执行两类守卫，渲染 narrative |
+| 整理 | ASR 转写、可选软性关注项 | 结构化 `CallSummary`（不含 narrative；qa_records 按开关生成） | 校验结构完整性并执行事实守卫，渲染 narrative |
 
 ### 9.3 首轮摘要是稳定基线
 
@@ -483,16 +482,15 @@ POST /api/calls/<id>/process
 ```text
 candidate_name, call_date,
 remark_sections[]     动态业务章节（title, bullets，条数不设上限、宁多勿漏）
-soft_skill_summary    软性概述（来自通过守卫的详细观察）
+soft_skill_summary[]  分点式软性表现概述
 soft_skill_summary_title  概述章节标题（可选）
-soft_skill_observations[] 详细观察（name, dimension, signal, question, observation, quote, confidence, fact_id）
 qa_records[]          快筛详情通篇问答（question, answer；按设置开关生成，默认关闭；关闭时程序侧解析后强制清空，模型自行输出也不保留）
 narrative             由上述结构渲染的统一可编辑文本，用于展示和 Markdown 下载
 fields[], facts[], extra_info[], doubts[],
 guard_warnings[], transcript（转写原文，守卫与时间戳的核对基准）
 ```
 
-结构化源数据是程序校验的事实来源；`narrative` 由 `render_remark_narrative()` 渲染**四层结构，每层独立可取舍**：① 客观记录章节 → ② 软性表现概述 → ③ 软性素质观察（我的问题 → 候选人回答 → 观察结论）→ ④ 快筛详情（通篇问答原文，仅开关开启且有内容时渲染）。人工编辑 `narrative` 后不反向解析回结构化字段。
+结构化源数据是程序校验的事实来源；`narrative` 由 `render_remark_narrative()` 渲染三层结构：① 客观记录章节 → ② 分点式软性表现概述 → ③ 快筛详情（通篇问答原文，仅开关开启且有内容时渲染）。人工编辑 `narrative` 后不反向解析回结构化字段。
 
 首轮整理必须至少满足：
 
@@ -500,7 +498,7 @@ guard_warnings[], transcript（转写原文，守卫与时间戳的核对基准�
 - `fields` 非空；
 - 渲染后的 `narrative` 非空。
 
-软性观察与快筛详情（`qa_records`）不是必填项：没有可靠原文证据时可以为空，模型不得强行凑项。`dimension` 必须使用框架规范名（热爱/自驱/韧性/逻辑/学习能力/开放性/务实/协作），不属于预设维度时才用自定义名称；`signal` 只取「积极信号」或「风险信号」。软性观察每项必须包含**触发问题 `question`（HR 提问原文）+ 候选人回答 `quote` + 观察结论 `observation` 三要素**；观察结论须客观——不只报喜，能推导性格与未来工作表现，并明确指出风险信号。
+软性表现概述与快筛详情（`qa_records`）不是必填项：没有可靠原文证据时可以为空，模型不得强行凑项。`soft_skill_summary` 只保存分点数组，不保存问题、回答、引用、置信度或逐条观察明细；概述须客观克制，既可指出积极表现，也可指出证据支持的局限或风险。
 
 首轮若返回空壳，视为结构失败并携带错误重试一次；连续失败则该条目进入 failed，不得以空摘要标记 done。
 
@@ -512,14 +510,7 @@ guard_warnings[], transcript（转写原文，守卫与时间戳的核对基准�
 - “已确认”字段如果没有事实 ID，或引用事实未通过核验，则降为“含糊”。
 - 守卫只降级依据不足的状态并记录 `guard_warnings`，不凭空补充事实。
 
-软性观察守卫规则（`apply_soft_skill_guard`）：
-
-- 每项观察的 `name`、`observation`、`quote`、`confidence` 必须非空；`question` 不核对（仅作展示）。
-- `quote` 必须在输入转写原文中逐字回查，且 `fact_id` 指向 `speaker=候选人` 的有效事实。
-- 未通过守卫的观察被剔除并写入 `guard_warnings`，不得进入软性概述。
-- 全部观察被剔除时清空 `soft_skill_summary` 并告警；单项失败不清空完整 Remark。
-
-`qa_records`（快筛详情）与软性观察的 `question` **不参与守卫**——它们是 HR 按需取舍的整理材料而非程序断言，这是刻意设计。
+`qa_records`（快筛详情）不参与事实守卫——它是 HR 按需取舍的整理材料而非程序断言，这是刻意设计。
 
 ### 9.5 多录音并发与隔离
 
@@ -640,7 +631,7 @@ progress, error, summary
 ```text
 candidate_name, call_date, narrative,
 remark_sections[].{title,bullets}, soft_skill_summary_title,
-soft_skill_summary, soft_skill_observations[].{name,dimension,signal,question,observation,quote,confidence,fact_id},
+soft_skill_summary[],
 qa_records[].{question,answer},
 fields[].{key,label,value,status,fact_ids,note},
 facts[].{id,content,speaker,timestamp,ref,start_time,end_time},
@@ -714,7 +705,7 @@ FastAPI 异步请求
 | `CandidateEvaluation` | 评估 prompt、证据守卫（含硬性门槛 `apply_hard_gate_guard`）、排序、持久化结果、Excel（含「硬性门槛判定」列）、前端结果、对比 |
 | 证据维度或核心维度 | `models.py`、prompt、guard、evidence strength、Excel 证据表 |
 | 硬性门槛 `hard_gate` / `HardGateVerdict` | criteria prompt、评估 prompt、`apply_hard_gate_guard()`、Excel 总表列、硬性门槛验证 |
-| 软性素质维度 / `SoftSkillObservation`（dimension、signal、question） | `soft-skill-framework.md`、整理 prompt、四层 narrative 渲染、前端维度 chips、前端岗位联动关键词映射 `SOFT_SKILL_KEYWORD_MAP`、电话验证 |
+| 软性素质维度 / `soft_skill_summary` | `soft-skill-framework.md`、整理 prompt、narrative 渲染、前端维度 chips、前端岗位联动关键词映射 `SOFT_SKILL_KEYWORD_MAP`、电话验证 |
 | A/B/C 枚举 | 模型、guard、排序、工作簿契约、校验器、前端精确匹配、AI 对比、验证 |
 | `source_file` 语义 | 上传命名、续跑、追加简历、结果预览、AI 对比、缓存、前端选择键、验证 |
 | 简历解析策略 | `extract_resume_text.py`、`pipeline.extract_document()`、OCR 状态、上传类型、预览支持、解析验证 |
@@ -722,7 +713,7 @@ FastAPI 异步请求
 | 结果/产物文件名 | `pipeline.py`、下载/预览路由、续跑、对比缓存、历史老任务兼容 |
 | 检查点保存顺序 | 原子写逻辑、恢复逻辑、取消、并发和中断验证 |
 | 模型调用或重试策略 | `llm.py`、取消语义、设置 timeout、筛选/电话/对比调用、错误验证 |
-| `CallSummary` / `CallField` / `CallFact` / `CallQA` | 整理 prompt、完整性校验、事实守卫、四层 narrative 渲染、持久化 JSON/Markdown、编辑 API、前端展示、旧摘要兼容、回放定位（`start_time`/`end_time` 与音频访问 API）、电话验证 |
+| `CallSummary` / `CallField` / `CallFact` / `CallQA` | 整理 prompt、完整性校验、事实守卫、narrative 渲染、持久化 JSON/Markdown、编辑 API、前端展示、旧摘要兼容、回放定位（`start_time`/`end_time` 与音频访问 API）、电话验证 |
 | ASR 请求参数或响应结构 | `speech_to_text.py`、电话处理器、设置的 ASR 状态、STT 验证 |
 | 首页 DOM ID 或 class | 前端 js/ 模块的节点查询和事件、`styles.css`、首页验证、发布烟测 |
 | 前端本地存储键 | 初始化恢复、切换工具、新建任务、历史恢复 |

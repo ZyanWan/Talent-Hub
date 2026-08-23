@@ -1,7 +1,7 @@
 """项目级系统提示词 A/B 评测工具。
 
 用法：
-    python eval_prompt.py --case call-summary --version old
+    python eval_prompt.py --case call-summary --version baseline
     python eval_prompt.py --case call-summary --version current
     python eval_prompt.py --case call-summary --version both
     python eval_prompt.py --case call-summary --save-current-system baseline_system.txt
@@ -34,7 +34,6 @@ from app.models import CallSummary  # noqa: E402
 from app.runtime.phone_screening import (  # noqa: E402
     CALL_FIELDS,
     apply_call_guard,
-    apply_soft_skill_guard,
     render_call_summary_markdown,
     render_remark_narrative,
     summarize_system_prompt as new_system_prompt,
@@ -61,9 +60,9 @@ class PromptCase:
     build_system_file: Callable[[Path], Callable[[str, str, bool], tuple[str, str]]]
     run_variant: Callable[[PromptVariant, Path, str, bool, Path], int]
 
-# ---------------------------------------------------------------- 旧版 prompt（改动前快照，完整内嵌）
+# ---------------------------------------------------------------- 基线 prompt（完整内嵌）
 
-OLD_BASE_SUMMARIZE_PROMPT = """你是资深招聘 HR 助理。输入是 HR 与候选人的电话沟通转写文本（可能含说话人归属错误、断句混乱、错字、同音词、数字误识）。
+BASELINE_BASE_SUMMARIZE_PROMPT = """你是资深招聘 HR 助理。输入是 HR 与候选人的电话沟通转写文本（可能含说话人归属错误、断句混乱、错字、同音词、数字误识）。
 直接基于输入转写文本整理成一份站在招聘 HR 工作视角、专业、客观、可直接提供给用人部门阅读的候选人 Remark，并输出 JSON。不润色、不脱离原文创造新事实；不确定内容保留原文表达。
 
 Remark 写作要求：
@@ -71,19 +70,14 @@ Remark 写作要求：
 - 业务章节（remark_sections）根据本次通话实际内容自由生成，不固定章节名称、数量或每章条数；对话没有对应内容时不得强行生成章节。
 - 只写通话中实际出现或有转写原文支持的信息；含糊说法（"大概""可能"等）保留不确定性，不得擅自改成确定事实；同一信息不跨章重复。
 - 不输出任何推进决策性附加项：不得出现"建议推进/补充确认/建议暂缓"、风险与待确认清单、建议下一步、推荐等级或 A/B/C 分类。
-- 所有字段文本（含 title、bullets、observation、quote、soft_skill_summary、note、content 等）使用纯中文表述，严禁出现 #、*、**、_、`、~~、-（作为列表或强调标记时）等任何 Markdown 标记或强调符号；标题、章节名、观察项名称直接写文字本身，列表项由程序侧统一渲染。
+- 所有字段文本（含 title、bullets、soft_skill_summary、note、content 等）使用纯中文表述，严禁出现 #、*、**、_、`、~~、-（作为列表或强调标记时）等任何 Markdown 标记或强调符号；标题、章节名直接写文字本身，列表项由程序侧统一渲染。
 
-软性素质两层表达（如果输出软性素质）：
-- 先形成 soft_skill_observations 详细观察（每项必须有三要素：触发问题 question（HR 当时的提问原文）、
-  候选人回答逐字原文 quote、观察结论 observation），再从这些有效观察中提炼 soft_skill_summary 概述；
-  概述只概括详细观察中已有证据支持的结论。
-- 观察结论必须客观、有限克制：基于问题与回答的具体证据，推导候选人性格特征与未来工作表现，
-  既要指出积极信号也要明确指出风险信号，不得只报喜不报忧；不得使用"情商很高""人品可靠"等无行为依据的绝对人格标签。
-- dimension 必须使用参考框架中的规范维度名（热爱/自驱/韧性/逻辑/学习能力/开放性/务实/协作），
-  不属于任何预设维度时才使用自定义名称；signal 只取「积极信号」或「风险信号」。
-- 依据必须是候选人回答的逐字原文，不得改写或拼接；HR 的提问不能单独作为软性素质证据。
-- 不使用姓名、性别、年龄、民族、籍贯、婚育等受保护个人属性形成观察或结论。
-- 没有充分原文证据时，不强行生成观察项，soft_skill_observations 与 soft_skill_summary 可以留空。
+软性表现概述（必选分点）：
+- soft_skill_summary 必须输出分点数组，每点是一条可直接写入 HR 整理记录的软性表现判断。
+- 它不是事实摘要、经历复述或优点评语，必须在同一句中同时包含软性判断和来自通话回答的具体依据；可基于表达结构、信息颗粒度、动机侧重、沟通配合、复盘深度、归因方式或协作方式作有限判断。
+- 优先覆盖被问到且有有效回答的软性维度，同时保留积极信号与非积极信号；非积极信号包括中性、含糊、局限、矛盾或风险表现，不要求写成正向结论，也不要用"未发现风险"替代具体观察。
+- 不要把普通应答、礼貌配合、能完成基本介绍拔高为明显优点；不要使用"整体较好""表现不错""沟通顺畅""暂未发现明显风险"等泛化评价。
+- 不输出问题、回答、引用、置信度或逐条观察明细；不使用姓名、性别、年龄、民族、籍贯、婚育等受保护个人属性形成观察或结论。
 
 {qa_records_prompt}
 软性素质参考框架：
@@ -94,7 +88,7 @@ Remark 写作要求：
 （含 ASR 原文错字，不得修正、不得改写、不得概括）；程序以输入转写文本为基准核对该线索，只用于程序侧核对，不得出现在说明文字里。
 不要输出思维过程，只输出符合要求的 JSON 对象。所有字段使用简体中文。"""
 
-OLD_QA_RECORDS_PROMPT = """快筛详情（qa_records）：
+BASELINE_QA_RECORDS_PROMPT = """可选快筛详情（qa_records）：
 - 把整通电话中 HR 提出的每个关键问题与候选人的回答逐条记录，作为整理记录最后的问答原文部分。
 - question 保留 HR 提问的原文表达；answer 保留候选人的回答转写原文（逐字保留原话，不得改写、概括或拼接）。
 - 问题即使没有有效回答也应保留，answer 留空即可。
@@ -107,15 +101,15 @@ def _read_reference(name: str) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
-def old_system_prompt(include_qa_records: bool = True) -> str:
+def baseline_system_prompt(include_qa_records: bool = True) -> str:
     framework = _read_reference("soft-skill-framework.md")
-    qa_section = OLD_QA_RECORDS_PROMPT if include_qa_records else ""
-    return OLD_BASE_SUMMARIZE_PROMPT.replace(
+    qa_section = BASELINE_QA_RECORDS_PROMPT if include_qa_records else ""
+    return BASELINE_BASE_SUMMARIZE_PROMPT.replace(
         "{qa_records_prompt}", qa_section
     ).replace("{soft_skill_framework}", framework)
 
 
-def old_user_prompt(
+def baseline_user_prompt(
     transcript: str, candidate_name: str = "", soft_skill_focus: str = "",
     soft_skill_dimensions: list[str] | tuple[str, ...] = (),
     include_qa_records: bool = True,
@@ -131,19 +125,8 @@ def old_user_prompt(
             }
         ],
         "soft_skill_summary_title": "软性概述章节标题（可选，如「软性表现概述」；留空程序使用默认标题）",
-        "soft_skill_summary": "几句话的软性表现概述，只能来自下方 soft_skill_observations 已支持的结论；无可靠观察则留空",
-        "soft_skill_observations": [
-            {
-                "id": "O1、O2……",
-                "name": "观察项名称",
-                "dimension": "所属维度（规范名或自定义）",
-                "signal": "积极信号 / 风险信号",
-                "question": "触发该观察的 HR 提问原文",
-                "observation": "客观的软性素质判断：基于问答证据推导性格特征与未来工作表现，明确指出风险信号，不只报喜不报忧",
-                "quote": "候选人回答逐字原文（必须能在转写原文中找到）",
-                "confidence": "高 / 中 / 低",
-                "fact_id": "对应候选人事实编号，如 F1",
-            }
+        "soft_skill_summary": [
+            "必填分点；可直接写入 HR 整理记录的软性表现判断；每点同时写判断和具体依据，覆盖积极与非积极信号，不写事实摘要或泛化优点评语"
         ],
         "fields": [
             {
@@ -217,7 +200,6 @@ def quality_report(summary: CallSummary, transcript: str, elapsed: float) -> dic
     for f in summary.fields:
         field_status[f.status] = field_status.get(f.status, 0) + 1
     bullets_total = sum(len(s.bullets) for s in summary.remark_sections)
-    # 守卫剔除的观察数（对比原始输出与守卫后）
     return {
         "elapsed_sec": round(elapsed, 1),
         "remark_sections": len(summary.remark_sections),
@@ -226,7 +208,7 @@ def quality_report(summary: CallSummary, transcript: str, elapsed: float) -> dic
         "bullets_total": bullets_total,
         "field_status": field_status,
         "facts": len(summary.facts),
-        "observations_kept": len(summary.soft_skill_observations),
+        "soft_skill_summary_points": len(summary.soft_skill_summary),
         "guard_warnings": summary.guard_warnings,
         "spectator_phrases": spectator_hits,
         "speaker_leak": speaker_hits,
@@ -244,10 +226,10 @@ def _safe_name(name: str) -> str:
     return value.strip("_") or "variant"
 
 
-def _build_old_prompt(transcript: str, candidate_name: str, include_qa: bool) -> tuple[str, str]:
+def _build_baseline_prompt(transcript: str, candidate_name: str, include_qa: bool) -> tuple[str, str]:
     return (
-        old_system_prompt(include_qa_records=include_qa),
-        old_user_prompt(transcript, candidate_name, include_qa_records=include_qa),
+        baseline_system_prompt(include_qa_records=include_qa),
+        baseline_user_prompt(transcript, candidate_name, include_qa_records=include_qa),
     )
 
 
@@ -275,7 +257,7 @@ def _build_call_summary_system_file_prompt(
 
 CALL_SUMMARY_CASE = PromptCase(
     name="call-summary",
-    default_input=OUT_DIR / "transcript_mock.txt",
+    default_input=OUT_DIR / "normal" / "transcript.txt",
     default_candidate="王晓明",
     current_system=new_system_prompt,
     build_current=_build_current_call_summary_prompt,
@@ -295,8 +277,8 @@ PROMPT_CASES = {
 
 
 def _variant_for_version(case: PromptCase, version: str) -> PromptVariant:
-    if version == "old":
-        return PromptVariant("old", _build_old_prompt)
+    if version == "baseline":
+        return PromptVariant("baseline", _build_baseline_prompt)
     return PromptVariant("current", case.build_current)
 
 
@@ -325,7 +307,6 @@ def run_call_summary_variant(
         summary.transcript = transcript
         summary.candidate_name = (summary.candidate_name or "").strip() or candidate_name
         summary = apply_call_guard(summary, transcript)
-        summary = apply_soft_skill_guard(summary, transcript)
         summary.narrative = render_remark_narrative(summary)
     finally:
         client.close()
@@ -357,7 +338,7 @@ def run(version: str, transcript_path: Path, candidate_name: str) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--case", choices=sorted(PROMPT_CASES), default="call-summary")
-    parser.add_argument("--version", choices=["old", "current", "both"], default="both")
+    parser.add_argument("--version", choices=["baseline", "current", "both"], default="both")
     parser.add_argument("--input")
     parser.add_argument("--transcript")
     parser.add_argument("--candidate")
@@ -383,7 +364,7 @@ def main() -> int:
             PromptVariant(args.b_name, prompt_case.build_current),
         ]
     elif args.version == "both":
-        variants = [_variant_for_version(prompt_case, "old"), _variant_for_version(prompt_case, "current")]
+        variants = [_variant_for_version(prompt_case, "baseline"), _variant_for_version(prompt_case, "current")]
     else:
         variants = [_variant_for_version(prompt_case, args.version)]
     status = 0
