@@ -185,6 +185,48 @@ MD_PATTERN = re.compile(r"[#*`~]|(?<![\u4e00-\u9fff])_(?![\u4e00-\u9fff])")
 TS_PATTERN = re.compile(r"\d{3}\.\d{3}|\[\d|\d{2}:\d{2}")
 SPEAKER_PATTERN = re.compile(r"说话人\s*[0-9０-９]")
 
+# 泛化拔高评价（无具体依据的套话）
+GENERIC_PRAISE_PATTERNS = [
+    "整体较好", "表现不错", "沟通顺畅", "暂未发现", "未发现明显风险", "未发现风险",
+    "态度积极", "配合度好", "配合度高", "表达清晰", "逻辑清晰", "条理清晰",
+    "思路清晰", "学习能力较强", "学习能力不错", "综合素质", "整体沟通",
+]
+# 非积极信号线索（负面优先：同一句同时命中正负时按负面计）
+NEGATIVE_CUES = [
+    "含糊", "模糊", "笼统", "空洞", "泛泛", "矛盾", "不一致", "对不上", "回避",
+    "绕开", "转移话题", "外部归因", "归咎", "甩锅", "贬低", "存疑", "不足", "缺乏",
+    "夸大", "模板化", "被动", "停留在", "未深入", "依据不足", "颗粒度不足", "较难核实",
+]
+# 弱化词：与正面词共现时实际是负面/受限观察（如"主动学习偏弱"）
+WEAKENER_CUES = [
+    "偏弱", "较弱", "有限", "偏粗", "较少", "一般", "不明显", "未展示", "未体现",
+    "未给出", "未说明", "未追问", "未展开", "偏被动", "偏概括", "确定性偏低",
+]
+POSITIVE_CUES = [
+    "主动", "具体", "深入", "超出", "细致", "有条理", "成熟", "坦然", "客观",
+    "复盘", "自驱", "画面感", "可验证", "有结果", "改进",
+]
+
+
+def classify_soft_skill_points(points: list[str]) -> dict[str, object]:
+    """按负面优先原则给软性分点分类，输出正/负/中性计数与逐点标签。"""
+    labels: list[str] = []
+    for point in points:
+        if any(cue in point for cue in NEGATIVE_CUES):
+            labels.append("negative")
+        elif any(cue in point for cue in WEAKENER_CUES):
+            labels.append("negative")
+        elif any(cue in point for cue in POSITIVE_CUES):
+            labels.append("positive")
+        else:
+            labels.append("neutral")
+    return {
+        "positive": labels.count("positive"),
+        "negative": labels.count("negative"),
+        "neutral": labels.count("neutral"),
+        "labels": labels,
+    }
+
 
 def quality_report(summary: CallSummary, transcript: str, elapsed: float) -> dict:
     narrative = summary.narrative or ""
@@ -200,6 +242,8 @@ def quality_report(summary: CallSummary, transcript: str, elapsed: float) -> dic
     for f in summary.fields:
         field_status[f.status] = field_status.get(f.status, 0) + 1
     bullets_total = sum(len(s.bullets) for s in summary.remark_sections)
+    soft_points = [p for p in summary.soft_skill_summary if p.strip()]
+    generic_praise_hits = [p for p in GENERIC_PRAISE_PATTERNS if p in narrative]
     return {
         "elapsed_sec": round(elapsed, 1),
         "remark_sections": len(summary.remark_sections),
@@ -208,7 +252,9 @@ def quality_report(summary: CallSummary, transcript: str, elapsed: float) -> dic
         "bullets_total": bullets_total,
         "field_status": field_status,
         "facts": len(summary.facts),
-        "soft_skill_summary_points": len(summary.soft_skill_summary),
+        "soft_skill_summary_points": len(soft_points),
+        "soft_skill_polarity": classify_soft_skill_points(soft_points),
+        "generic_praise_hits": generic_praise_hits,
         "guard_warnings": summary.guard_warnings,
         "spectator_phrases": spectator_hits,
         "speaker_leak": speaker_hits,
