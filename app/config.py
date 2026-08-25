@@ -39,6 +39,9 @@ class AppSettings:
     asr_api_key: str = ""       # 火山引擎 API Key，DPAPI 加密保存
     retain_resume_text: bool = True
     call_qa_records: bool = False   # 电话整理是否生成快筛详情（通篇问答原文）；关闭可大幅减少模型输出
+    feishu_push_enabled: bool = False   # 任务完成后是否推送结果到飞书群
+    feishu_webhook_url: str = ""        # 飞书自定义机器人 Webhook 地址
+    feishu_sign_secret: str = ""        # 飞书签名密钥，DPAPI 加密保存
 
     def normalized(self) -> "AppSettings":
         base_url = self.base_url.strip().rstrip("/")
@@ -55,6 +58,9 @@ class AppSettings:
             asr_api_key=self.asr_api_key.strip(),
             retain_resume_text=bool(self.retain_resume_text),
             call_qa_records=bool(self.call_qa_records),
+            feishu_push_enabled=bool(self.feishu_push_enabled),
+            feishu_webhook_url=self.feishu_webhook_url.strip(),
+            feishu_sign_secret=self.feishu_sign_secret.strip(),
         )
 
     @property
@@ -76,6 +82,9 @@ class AppSettings:
             "asr_configured": bool(self.asr_api_key.strip()),
             "retain_resume_text": self.retain_resume_text,
             "call_qa_records": self.call_qa_records,
+            "feishu_push_enabled": self.feishu_push_enabled,
+            "feishu_webhook_url": self.feishu_webhook_url,
+            "feishu_sign_configured": bool(self.feishu_sign_secret.strip()),
             "is_ready": self.is_ready,
         }
 
@@ -141,6 +150,9 @@ class SettingsStore:
             encrypted_asr_key = str(payload.get("asr_api_key_dpapi", ""))
             if encrypted_asr_key and sys.platform == "win32":
                 values["asr_api_key"] = _unprotect_windows(encrypted_asr_key)
+            encrypted_feishu_sign = str(payload.get("feishu_sign_secret_dpapi", ""))
+            if encrypted_feishu_sign and sys.platform == "win32":
+                values["feishu_sign_secret"] = _unprotect_windows(encrypted_feishu_sign)
             return AppSettings(**values).normalized()
         except Exception:
             return AppSettings()
@@ -158,6 +170,11 @@ class SettingsStore:
             if sys.platform != "win32":
                 raise RuntimeError("非 Windows 系统暂不支持保存语音转写（ASR）密钥。")
             payload["asr_api_key_dpapi"] = _protect_windows(asr_api_key)
+        feishu_sign_secret = payload.pop("feishu_sign_secret", "")
+        if feishu_sign_secret:
+            if sys.platform != "win32":
+                raise RuntimeError("非 Windows 系统暂不支持保存飞书签名密钥。")
+            payload["feishu_sign_secret_dpapi"] = _protect_windows(feishu_sign_secret)
         self.root.mkdir(parents=True, exist_ok=True)
         descriptor, temp_name = tempfile.mkstemp(prefix="settings-", suffix=".tmp", dir=self.root)
         os.close(descriptor)

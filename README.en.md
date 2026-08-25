@@ -37,6 +37,7 @@
 - [Current capabilities](#current-capabilities)
 - [Technical highlights](#technical-highlights)
 - [Quick start (development)](#quick-start-development)
+- [Feishu push setup (optional)](#feishu-push-setup-optional)
 - [Windows build](#windows-build)
 - [Data & security](#data--security)
 - [Project layout](#project-layout)
@@ -84,12 +85,22 @@ Currently supported modules — more will follow:
 | **Fact guardrails** | Fact references must trace back to the transcript; otherwise they are flagged as unconfirmed for HR to judge during review. |
 | **Manual review & download** | After per-candidate review, export a Markdown record for each candidate. |
 
+### Feishu push
+
+| Capability | Description |
+| --- | --- |
+| **Auto notification on completion** | Pushes a result summary to a designated Feishu group when resume screening or phone screening finishes. |
+| **Summary messages** | Screening pushes the role, candidate count, A/B/C conclusion distribution, and the top 5 candidates (name + conclusion + evidence level); phone screening pushes the task title, completed item count, and each candidate's key confirmed fields. |
+| **Test Feishu link** | One-click test message in Settings to verify Webhook connectivity. |
+| **Failure never affects tasks** | A failed push only records a notice; it never changes the task's completion state. |
+
 ## Technical highlights
 
 - **Local-first**: data is stored in `%LOCALAPPDATA%\TalentHub`, never in the source tree.
-- **Key security**: model and ASR API keys are encrypted with the current Windows user's DPAPI.
+- **Key security**: model, ASR, and Feishu signature keys are encrypted with the current Windows user's DPAPI.
 - **Loopback isolation**: the service listens on `127.0.0.1` only and generates a per-session token at startup.
 - **Lightweight frontend**: vanilla HTML/CSS/JS with no frontend framework.
+- **Optional Feishu notifications**: pushes result summaries via a Feishu custom bot Webhook, with no new third-party dependency.
 
 ## Quick start (development)
 
@@ -112,6 +123,17 @@ The app opens your default browser on startup. On first use, enter the model ser
 > [!NOTE]
 > Text-based PDF, DOCX, TXT, and Markdown need no OCR. For scanned PDFs or images, install Tesseract and set the `tesseract.exe` path in Settings (install the `chi_sim` language pack for Chinese resumes).
 
+## Feishu push setup (optional)
+
+When enabled, result summaries are pushed to a designated Feishu group after resume screening or phone screening finishes.
+
+1. In the Feishu desktop client, open the target group → top-right settings → Group bots → Add bot → **Custom bot** → set a name and add it.
+2. Copy the generated **Webhook URL** (e.g. `https://open.feishu.cn/open-apis/bot/v2/hook/xxxx`).
+3. In the app's Settings dialog, under the "Feishu push" section: check "Automatically push results to the Feishu group when tasks finish", paste the Webhook URL, click "Test Feishu link" to verify, then save.
+
+> [!TIP]
+> ① If signature verification is not enabled, leave the signature secret blank; if you enable "Signature verification" in Feishu, paste the generated secret into "Feishu push · Signature secret". ② Do not set a "custom keyword" on the bot — messages without the keyword would be blocked by Feishu. ③ Push content contains only candidate names, conclusions, and key field summaries — never contact info or raw transcripts.
+
 ## Windows build
 
 1. Install build dependencies:
@@ -131,9 +153,10 @@ Portable and installer outputs go to `release\`; end users don't need Python. Th
 ## Data & security
 
 - App data is stored by default in `%LOCALAPPDATA%\TalentHub`, including settings, task materials, parsed text, and result files.
-- API keys and ASR keys are encrypted with DPAPI and never returned in plain text.
+- API keys, ASR keys, and Feishu signature secrets are encrypted with DPAPI and never returned in plain text.
 - The service listens only on the loopback address, and all API requests require a session token.
 - During screening and phone summarization, the job description, parsed resume text, and transcripts are sent to your configured model / ASR service; evaluate the provider's data handling and compliance before use.
+- Feishu push sends result summaries to Feishu servers via a Webhook; keep the Webhook URL private to prevent others from posting messages into the group.
 - Keep manual review for critical roles, campus hires, scarce talent, and high-risk rejections.
 
 ## Project layout

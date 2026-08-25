@@ -403,17 +403,31 @@
             <button class="secondary-button" id="clearAsrButton" type="button" data-i18n="clearAsr">清除</button>
           </div>
         </div>
+        <label class="field full"><span data-i18n="feishuWebhook">飞书推送 · Webhook 地址</span><input id="feishuWebhookInput"
+            name="feishu_webhook_url" type="url" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…"
+            data-i18n-placeholder="feishuWebhookPlaceholder"></label>
+        <div class="field full">
+          <span data-i18n="feishuSign">飞书推送 · 签名密钥</span>
+          <div class="field-action-row">
+            <input id="feishuSignInput" name="feishu_sign_secret" type="password" autocomplete="off" placeholder="已配置时可留空"
+              data-i18n-placeholder="apiKeyPlaceholder">
+            <button class="secondary-button" id="clearFeishuSignButton" type="button" data-i18n="clearAsr">清除</button>
+          </div>
+        </div>
         <div class="toggle-options full">
           <label class="toggle-row"><input id="retainTextInput" name="retain_resume_text" type="checkbox" checked><span
               data-i18n="retainText">在本机任务目录保留解析后的简历文本</span></label>
           <label class="toggle-row"><input id="qaRecordsInput" name="call_qa_records" type="checkbox"><span
               data-i18n="callQaRecords">电话整理时生成快筛详情（问答原文，较慢）</span></label>
         </div>
+        <label class="toggle-row full"><input id="feishuPushInput" name="feishu_push_enabled" type="checkbox"><span
+            data-i18n="feishuPush">任务完成后自动推送结果到飞书群</span></label>
       </div>
       <div class="dialog-footer">
         <div class="dialog-message" id="settingsMessage" role="status" aria-live="polite"></div>
-        <div class="dialog-actions"><button class="secondary-button" id="testSettingsButton" type="button"
-            data-i18n="testConnection">测试连接</button><button class="primary-button" id="saveSettingsButton" type="submit"
+        <div class="dialog-actions"><button class="secondary-button" id="testFeishuButton" type="button"
+            data-i18n="testFeishu">测试飞书链接</button><button class="secondary-button" id="testSettingsButton" type="button"
+            data-i18n="testConnection">测试模型链接</button><button class="primary-button" id="saveSettingsButton" type="submit"
             data-i18n="saveSettings">保存配置</button></div>
       </div>
     </form>

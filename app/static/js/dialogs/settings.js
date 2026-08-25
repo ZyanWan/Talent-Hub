@@ -41,6 +41,10 @@ export function openSettings() {
   $("ocrInput").value = settings.ocr_executable || "";
   $("retainTextInput").checked = settings.retain_resume_text !== false;
   $("qaRecordsInput").checked = settings.call_qa_records === true;
+  $("feishuPushInput").checked = settings.feishu_push_enabled === true;
+  $("feishuWebhookInput").value = settings.feishu_webhook_url || "";
+  $("feishuSignInput").value = "";
+  state.clearFeishuSignPending = false;
   renderOcrStatus();
   clearSettingsMessage();
   const dialog = $("settingsDialog");
@@ -76,6 +80,8 @@ function closeSettingsDialog() {
 function settingsPayload() {
   const clearAsr = Boolean(state.clearAsrPending);
   state.clearAsrPending = false;
+  const clearFeishuSign = Boolean(state.clearFeishuSignPending);
+  state.clearFeishuSignPending = false;
   return {
     base_url: $("baseUrlInput").value.trim(),
     api_key: $("apiKeyInput").value.trim(),
@@ -87,6 +93,10 @@ function settingsPayload() {
     ocr_executable: $("ocrInput").value.trim(),
     retain_resume_text: $("retainTextInput").checked,
     call_qa_records: $("qaRecordsInput").checked,
+    feishu_push_enabled: $("feishuPushInput").checked,
+    feishu_webhook_url: $("feishuWebhookInput").value.trim(),
+    feishu_sign_secret: $("feishuSignInput").value.trim(),
+    clear_feishu_sign: clearFeishuSign,
   };
 }
 
@@ -111,6 +121,17 @@ async function testSettings() {
     showSettingsMessage(state.language === "en" ? t("connectionTestPassed") : (result.message || t("connectionTestPassed")), false);
   } catch (error) { showSettingsMessage(error.message, true); }
   finally { setButtonBusy(button, false); button.textContent = t("testConnection"); }
+}
+
+async function testFeishu() {
+  const button = $("testFeishuButton");
+  setButtonBusy(button, true);
+  button.textContent = t("testing");
+  try {
+    await api("/api/settings/feishu-test", { method: "POST", body: JSON.stringify(settingsPayload()) });
+    showSettingsMessage(t("feishuTestPassed"), false);
+  } catch (error) { showSettingsMessage(t("feishuTestFailed", { message: error.message }), true); }
+  finally { setButtonBusy(button, false); button.textContent = t("testFeishu"); }
 }
 
 async function saveSettings(event) {
@@ -140,9 +161,15 @@ export function init() {
   });
   $("settingsForm").addEventListener("submit", saveSettings);
   $("testSettingsButton").addEventListener("click", testSettings);
+  $("testFeishuButton").addEventListener("click", testFeishu);
   $("clearAsrButton").addEventListener("click", () => {
     $("asrKeyInput").value = "";
     state.clearAsrPending = true;
+    $("settingsForm").requestSubmit();
+  });
+  $("clearFeishuSignButton").addEventListener("click", () => {
+    $("feishuSignInput").value = "";
+    state.clearFeishuSignPending = true;
     $("settingsForm").requestSubmit();
   });
 }

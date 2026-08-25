@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field, ValidationError
 from .artifact_preview import markdown_preview, resolve_artifact, workbook_preview
 from .call_repository import CallRepository
 from .config import AppSettings, SettingsStore, app_data_dir
+from .feishu import build_test_message, send_message
 from .llm import LLMError, LLMRequestError, OpenAICompatibleClient
 from .models import CallField, CallSummary
 from .pipeline import EvaluationEngine, ROOT, ocr_status
@@ -225,6 +226,10 @@ class SettingsInput(BaseModel):
     clear_asr: bool = False
     retain_resume_text: bool = True
     call_qa_records: bool = False
+    feishu_push_enabled: bool = False
+    feishu_webhook_url: str = ""
+    feishu_sign_secret: str = ""
+    clear_feishu_sign: bool = False
 
 
 class JobInput(BaseModel):
@@ -372,17 +377,27 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
     async def storage():
         return await run_in_threadpool(repository.storage_stats)
 
-    @app.put("/api/settings")
-    async def save_settings(payload: SettingsInput):
+    def merged_settings(payload: SettingsInput) -> AppSettings:
         current = settings_store.load()
         api_key = payload.api_key.strip() or current.api_key
         asr_key = "" if payload.clear_asr else (payload.asr_api_key.strip() or current.asr_api_key)
-        settings = AppSettings(
-            **payload.model_dump(exclude={"api_key", "asr_api_key", "asr_enabled", "clear_asr"}),
+        feishu_sign = "" if payload.clear_feishu_sign else (
+            payload.feishu_sign_secret.strip() or current.feishu_sign_secret
+        )
+        return AppSettings(
+            **payload.model_dump(exclude={
+                "api_key", "asr_api_key", "asr_enabled", "clear_asr",
+                "feishu_sign_secret", "clear_feishu_sign",
+            }),
             api_key=api_key,
             asr_api_key=asr_key,
             asr_enabled=bool(asr_key),
+            feishu_sign_secret=feishu_sign,
         )
+
+    @app.put("/api/settings")
+    async def save_settings(payload: SettingsInput):
+        settings = merged_settings(payload)
         try:
             saved = settings_store.save(settings)
         except RuntimeError as exc:
@@ -390,17 +405,20 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
         ocr = await run_in_threadpool(ocr_status, saved)
         return public_settings(saved, ocr)
 
+    @app.post("/api/settings/feishu-test")
+    async def test_feishu(payload: SettingsInput):
+        settings = merged_settings(payload)
+        if not settings.feishu_webhook_url.strip():
+            raise HTTPException(status_code=400, detail="请先填写飞书 Webhook 地址。")
+        try:
+            await run_in_threadpool(send_message, settings, build_test_message())
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True}
+
     @app.post("/api/settings/test")
     async def test_settings(payload: SettingsInput):
-        current = settings_store.load()
-        api_key = payload.api_key.strip() or current.api_key
-        asr_key = "" if payload.clear_asr else (payload.asr_api_key.strip() or current.asr_api_key)
-        settings = AppSettings(
-            **payload.model_dump(exclude={"api_key", "asr_api_key", "asr_enabled", "clear_asr"}),
-            api_key=api_key,
-            asr_api_key=asr_key,
-            asr_enabled=bool(asr_key),
-        )
+        settings = merged_settings(payload)
         try:
             def run_test() -> str:
                 with OpenAICompatibleClient(settings) as client:

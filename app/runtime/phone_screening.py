@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from ..call_repository import CallRepository
 from ..config import AppSettings, SettingsStore
+from ..feishu import build_call_message, push_if_enabled
 from ..llm import LLMError, LLMRequestError, OpenAICompatibleClient
 from ..models import CallSummary
 from . import call_state
@@ -70,7 +71,7 @@ BASE_SUMMARIZE_PROMPT = """你是这场电话初筛的 HR 本人，刚结束通�
 2. 结构：按你关心的信息主题组织章节（如背景现状、离职动机、薪酬期望、到岗安排），由通话实际内容决定，不套模板；要点完整具体（含关键事实、具体数字、候选人原话），宁多勿漏。
 3. 事实：只写转写原文支持的信息；"大概""可能"等含糊说法保留原样，不得改成确定事实；同一信息不跨章重复；不脑补、不改写事实。
 4. 边界：不输出任何推进决策性附加项——不得出现"建议推进/补充确认/建议暂缓"、风险与待确认清单、建议下一步或任何分级、推荐结论。此禁令只针对额外章节与决策结论，不限制 soft_skill_summary 内如实记录的非积极信号与风险表现（按规则 8 记录）。
-5. 格式：所有字段使用纯中文，不使用任何 Markdown 标记或强调符号；标题、章节名直接写文字本身，列表由程序统一渲染。
+5. 格式：所有字段使用纯中文，不使用任何 Markdown 标记或强调符号；标题、章节名直接写文字本身，列表由程序统一渲染；remark_sections 的每个章节标题必须带统一的中文序号前缀（「一、」「二、」「三、」…），如「一、背景现状」，禁止使用数字序号（1. 2.）或无序标题；此数字序号禁令仅针对章节标题，正文要点不要自行加序号（由程序渲染）。
 6. 转写说明：转写中「说话人0」「说话人1」等是 ASR 说话人编号，其中一人是 HR、一人是候选人，请结合语境自行判断；输出中不得出现说话人编号和时间戳。转写可能含错字、同音词、口语重复，整理时忽略表达瑕疵，只提取信息内容。
 7. 内部字段（fields/facts）用于覆盖性检查：维度未问到填"通话未提及"，问到了但含糊不清填"含糊"；ref 必须逐字引用转写原文的连续原句片段（含 ASR 错字原样，不得修正、改写、概括），程序以转写原文为基准核对该线索，只用于程序侧核对，不得出现在说明文字里。
 8. 软性表现概述（必选分点）：soft_skill_summary 必须输出分点数组，每点是一条可直接写入 HR 整理记录的软性表现判断。它不是事实摘要、经历复述或优点评语，必须在同一句中同时包含软性判断和来自通话回答的具体依据；可基于表达结构、信息颗粒度、动机侧重、沟通配合、复盘深度、归因方式或协作方式作有限判断。
@@ -114,7 +115,7 @@ def summarize_user_prompt(
         "remark_sections": [
             {
                 "id": "S1、S2……",
-                "title": "动态业务章节标题（按实际通话生成）",
+                "title": "动态业务章节标题（按实际通话生成），必须带统一中文序号前缀（如「一、背景现状」「二、离职动机」），禁止数字序号或无序标题",
                 "bullets": ["按主题组织要点，每条完整具体（含关键事实、具体数字、候选人原话）；以 HR 本人口径直接记录，不写「候选人表示/自述」「HR 询问」等旁观转述；数量不设上限，以完整覆盖该主题为原则，宁多勿漏"],
             }
         ],
@@ -391,13 +392,14 @@ def render_remark_narrative(summary: CallSummary) -> str:
             continue
         lines.append("")
         lines.append(section.title.strip())
-        lines.extend(f"- {bullet.strip()}" for bullet in section.bullets if bullet.strip())
+        bullets = [bullet.strip() for bullet in section.bullets if bullet.strip()]
+        lines.extend(f"{index}. {bullet}" for index, bullet in enumerate(bullets, start=1))
     summary_points = [point.strip() for point in summary.soft_skill_summary if point.strip()]
     if summary_points:
         lines.append("")
         title = summary.soft_skill_summary_title.strip() or "软性表现概述"
         lines.append(title)
-        lines.extend(f"- {point}" for point in summary_points)
+        lines.extend(f"{index}. {point}" for index, point in enumerate(summary_points, start=1))
     if summary.qa_records:
         lines.append("")
         lines.append("快筛详情")
@@ -703,9 +705,14 @@ class CallProcessor:
             if call_state.any_item_failed(final.get("items", [])):
                 self.repository.update(call_id, status="failed", stage="任务失败", errors=errors)
             else:
+                self.repository.update(call_id, stage="推送飞书通知")
+                push_error = push_if_enabled(
+                    self.settings_store, build_call_message,
+                    final.get("title"), final.get("items", []),
+                )
                 self.repository.update(
                     call_id, status="done", stage="处理完成", progress=100,
-                    completed=total, errors=[],
+                    completed=total, errors=[push_error] if push_error else [],
                 )
         except InterruptedError:
             call = self.repository.get(call_id)

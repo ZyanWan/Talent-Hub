@@ -30,6 +30,7 @@ export const state = {
   historyLoading: false,
   storageStats: null,
   clearAsrPending: false,
+  clearFeishuSignPending: false,
   pendingDeleteJob: null,
   criteriaBase: null,
   toolStripOpen: false,

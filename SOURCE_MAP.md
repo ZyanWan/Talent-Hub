@@ -25,7 +25,8 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | 模块 | 核心职责 | 主要影响对象 |
 | --- | --- | --- |
 | `app/main.py` | 应用装配、路由、令牌中间件、上传限制、下载和预览、服务启动 | 前端全部 API、仓储、筛选引擎、电话处理器 |
-| `app/config.py` | 数据目录、配置模型、DPAPI、配置迁移和公开配置 | 模型调用、ASR、前端设置、发布运行环境 |
+| `app/config.py` | 数据目录、配置模型、DPAPI、配置迁移和公开配置 | 模型调用、ASR、飞书推送、前端设置、发布运行环境 |
+| `app/feishu.py` | 飞书 Webhook 推送：签名、发送、筛选/电话消息构建、大小保护、惰性推送 `push_if_enabled` | `main.py`（feishu-test）、`pipeline.py`、`phone_screening.py`、设置配置 |
 | `app/models.py` | 筛选（含硬性门槛判定）、证据、电话摘要（动态章节/软性观察/快筛问答）的 Pydantic 契约 | Prompt 输出、持久化 JSON、Excel、前端字段 |
 | `app/repository.py` | `JsonStore` 通用 JSON 仓储、岗位任务 JSON、文件目录、归档、删除、路径和文件名安全 | `main.py`、`pipeline.py`、`call_repository.py`、任务恢复 |
 | `app/call_repository.py` | 电话任务（含 soft_skill_focus、soft_skill_dimensions、job_id）、音频与条目持久化 | `main.py`、`phone_screening.py`、前端电话页 |
@@ -63,7 +64,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
   | 归属 | state 字段 |
   | --- | --- |
   | shell | language、toolStripOpen |
-  | settings | settings、clearAsrPending |
+  | settings | settings、clearAsrPending、clearFeishuSignPending |
   | history | jobs、archivedJobs、historyScope、historyTotals、historyKind、historyLoading、storageStats、callTasks、callArchivedTasks、callScope、callTotals |
   | screening | currentJob、selectedResumes、resultFilter、liveResultKeys、criteriaBase、pendingDeleteJob、pollTimer |
   | resume | resumePreviewIndex、resumePreviewUrl、resumeRenderController、resumeRenderCache、resumePrefetchController、storedResumePreview |
@@ -102,11 +103,13 @@ FastAPI app/main.py
   │    ├─ extract_resume_text.py
   │    ├─ OpenAICompatibleClient ─ app/llm.py ── 外部模型 API
   │    ├─ build_candidate_workbook.py
-  │    └─ validate_workbook.py
+  │    ├─ validate_workbook.py
+  │    └─ push_if_enabled ──────── app/feishu.py ── 飞书 Webhook（筛选完成）
   ├─ CallRepository ────────────── app/call_repository.py ── calls/<call_id>/
   ├─ CallProcessor ─────────────── phone_screening.py
   │    ├─ speech_to_text.py ── 火山 ASR API
-  │    └─ OpenAICompatibleClient ── 外部模型 API
+  │    ├─ OpenAICompatibleClient ── 外部模型 API
+  │    └─ push_if_enabled ──────── app/feishu.py ── 飞书 Webhook（电话完成）
   └─ artifact_preview.py ───────── Markdown / XLSX 限量预览
 ```
 
@@ -143,31 +146,47 @@ launcher.py 或 python -m app.main
 ```text
 设置对话框 js/dialogs/settings.js
   → PUT /api/settings
-  → main.py 将请求转换为 AppSettings
+  → main.py merged_settings() 将请求合并到 AppSettings
+     ├─ 明文密钥/清除标记不回传：exclude api_key/asr_api_key/asr_enabled/clear_asr/feishu_sign_secret/clear_feishu_sign
+     ├─ api_key、asr_api_key：留空回退已存值，clear_* 置空
+     └─ feishu_sign_secret：留空回退已存值，clear_feishu_sign 置空
   → SettingsStore.save()
      ├─ 数值归一化
-     ├─ API Key / ASR Key 使用 DPAPI 加密
+     ├─ API Key / ASR Key / 飞书签名密钥使用 DPAPI 加密
      └─ 临时文件 + os.replace 写 settings.json
   → public_settings()
-  → 前端只得到 is_ready / asr_configured 等公开状态
+  → 前端只得到 is_ready / asr_configured / feishu_push_enabled / feishu_webhook_url / feishu_sign_configured 等公开状态
 ```
 
 模型调用时：
 
 ```text
-EvaluationEngine / CallProcessor / settings test / compare
+EvaluationEngine / CallProcessor / settings test / feishu-test / compare
   → SettingsStore.load()
   → DPAPI 解密或读取 TALENT_HUB_API_KEY
   → OpenAICompatibleClient(base_url, api_key, model, timeout)
 ```
 
+飞书推送时（`push_if_enabled`）：
+
+```text
+pipeline._run / phone_screening._run（置终态前）
+  → push_if_enabled(settings_store, build_fn, *args)
+  → SettingsStore.load() 读最新配置（推送偏好即时生效，不沿用任务快照）
+  → 开关关闭或 webhook 为空 → 返回 None，不发起请求
+  → 同一 try 内：build_fn(*args) 构建消息 → send_message() 发送
+  → 任何异常 → 返回「飞书推送失败：…」字符串，绝不外抛（构建/发送均受保护）
+  → 错误字符串并入任务终态 update 的 errors
+```
+
 关键约束：
 
-- API 响应不得返回明文密钥。
+- API 响应不得返回明文密钥（含飞书签名密钥，仅暴露 `feishu_sign_configured` 布尔）。
 - 前端设置框不会回填已保存密钥；空输入表示保留旧值。
-- ASR 密钥有显式清除语义，不能与“留空保留”混淆。
+- ASR 与飞书签名密钥都有显式清除语义（`clear_asr` / `clear_feishu_sign`），不能与"留空保留"混淆。
+- 推送挂点位于任务置终态（completed/done）**之前**：前端轮询看到终态即停止，推送失败提示必须并入同一次终态 update 才会被用户看到。
 - `schema_version` 迁移影响旧用户升级。
-- 修改配置字段必须同步检查 `AppSettings`、设置请求模型、`PUT /api/settings`、`POST /api/settings/test`、`public_settings()`、前端表单、`settingsPayload()`、迁移验证。
+- 修改配置字段必须同步检查 `AppSettings`、设置请求模型、`PUT /api/settings`、`POST /api/settings/test`、`POST /api/settings/feishu-test`、`public_settings()`、前端表单、`settingsPayload()`、迁移验证。
 
 ## 6. 简历筛选端到端数据流
 
@@ -327,7 +346,8 @@ pipeline.extract_document()
   → validate_workbook_detailed()
      ├─ 结构错误/安全错误：任务失败
      └─ 非阻断 warning：写入 job.errors
-  → job: completed / progress=100
+  → stage=推送飞书通知 → push_if_enabled()（可选推送，见第 5 章）
+  → job: completed / progress=100（推送错误并入本次 update 的 errors）
 ```
 
 恢复依据包括：
@@ -550,6 +570,8 @@ failed/cancelled → process → running
 
 `call_state.py` 还定义了任务级 `queued`，并将其纳入运行态集合；当前 `CallProcessor.start()` 直接把任务置为 `running`，没有单独排队阶段。
 
+任务进入 `done` 前（`_run` else 分支）先执行 `stage=推送飞书通知` 与 `push_if_enabled()`（可选推送，见第 5 章），推送错误并入该次 update 的 `errors`（原硬编码 `errors=[]` 已改为动态列表）。
+
 条目状态：
 
 ```text
@@ -581,6 +603,7 @@ transcribing/summarizing --取消或进程中断→ queued
 - 错误响应优先返回 `{"detail": "可展示说明"}`。
 - 文件下载使用非 JSON 响应；中文文件名优先采用 RFC 5987 `filename*=utf-8''...`。
 - 前端 `api()` 会根据响应 Content-Type 决定返回 JSON 还是原始 `Response`。
+- 设置相关端点：`PUT /api/settings`（保存）、`POST /api/settings/test`（模型连接测试）、`POST /api/settings/feishu-test`（飞书测试消息，成功 `{"ok": true}`，失败 400 + 含飞书 code/msg 的 detail）。
 
 ### 11.2 Job 前端依赖字段
 
@@ -682,7 +705,7 @@ FastAPI 异步请求
 | --- | --- | --- |
 | 仅监听回环地址 | `main.py` Uvicorn 配置 | 启动、烟测、产品约束 |
 | API 本地令牌 | `main.py` 中间件、HTML meta、`js/core/api.js api()` | 首页注入、所有 API 验证 |
-| DPAPI 密钥保护 | `config.py` | 设置 API、迁移、公开设置、验证 |
+| DPAPI 密钥保护 | `config.py` | 设置 API、迁移、公开设置、飞书签名密钥、验证 |
 | 文件名清洗 | `repository.py` | 上传、下载、预览、结果 `source_file` |
 | 路径边界 | 仓储、`artifact_preview.py` | 下载、预览、删除、路径逃逸验证 |
 | 上传大小限制 | `main.py`、`speech_to_text.py` | 前端提示、错误码、验证 |
@@ -697,7 +720,9 @@ FastAPI 异步请求
 
 | 如果修改 | 必须同步检查 |
 | --- | --- |
-| `AppSettings` 字段或默认值 | `config.py` 迁移和公开设置、`main.py` 请求模型及设置路由、`js/dialogs/settings.js` 表单和 payload、设置验证 |
+| `AppSettings` 字段或默认值 | `config.py` 迁移和公开设置、`main.py` 请求模型及设置路由、`js/dialogs/settings.js` 表单和 payload、设置验证（含飞书三字段） |
+| 飞书推送逻辑（`app/feishu.py`、`push_if_enabled`、消息构建、签名） | `main.py` 的 `feishu-test`、`pipeline.py` / `phone_screening.py` 挂点、消息大小保护、前端测试按钮与文案、推送失败不改变任务状态的验证 |
+| 飞书密钥或 Webhook 字段 | `config.py` DPAPI、`merged_settings` exclude 集合、`public_dict` 公开字段、前端回显、清除语义 |
 | API 路径、方法或响应字段 | `main.py`、前端 js/ 模块所有调用和渲染、API 验证、必要时发布烟测 |
 | Job 状态或 stage 语义 | `pipeline.py`、仓储归档限制、`main.py` 冲突处理、前端轮询/按钮/历史、状态验证 |
 | Call 状态或条目状态 | `call_state.py`、`phone_screening.py`、仓储、路由、前端状态标签和轮询、电话验证 |

@@ -433,9 +433,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .34); }
 .toggle-row input:checked::after { transform: translateX(14px); background: #fff; }
 .dialog-footer { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; margin-top: 14px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.dialog-actions .primary-button, .dialog-actions .secondary-button { width: 100px; min-height: 40px; border-radius: 6px; font-size: 11px; letter-spacing: .02em; }
-#testSettingsButton { border-color: #dededc; background: #fdfdfc; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8); }
-#testSettingsButton:hover { background: #f9f9f7; }
+.dialog-actions .primary-button, .dialog-actions .secondary-button { min-width: 100px; min-height: 40px; border-radius: 6px; font-size: 11px; letter-spacing: .02em; }
 #saveSettingsButton { box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
 .dialog-message { min-height: 18px; color: var(--blue-dark); font-size: 10px; line-height: 1.5; }
 .dialog-message:empty { visibility: hidden; }

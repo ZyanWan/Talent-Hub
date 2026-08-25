@@ -15,6 +15,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from .config import AppSettings, SettingsStore
+from .feishu import build_screening_message, push_if_enabled
 from .llm import LLMError, LLMRequestError, OpenAICompatibleClient
 from .models import CandidateEvaluation, EvidenceDimension, HardGateVerdict, PhoneQuestion, ScreeningCriteria
 from .repository import JobRepository, safe_filename, utc_now
@@ -1099,6 +1100,12 @@ class EvaluationEngine:
             (job_dir / "评估结果.json").write_text(
                 json.dumps(final_results, ensure_ascii=False, indent=2), encoding="utf-8"
             )
+            self.repository.update(job_id, stage="推送飞书通知")
+            push_error = push_if_enabled(
+                self.settings_store, build_screening_message, criteria.job_title, evaluations
+            )
+            if push_error:
+                errors.append(push_error)
             self.repository.update(
                 job_id, status="completed", stage="筛选完成", progress=100,
                 completed=len(resume_paths),
