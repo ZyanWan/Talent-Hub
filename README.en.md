@@ -37,6 +37,7 @@
 - [Current capabilities](#current-capabilities)
 - [Technical highlights](#technical-highlights)
 - [Quick start (development)](#quick-start-development)
+- [Application settings](#application-settings)
 - [Feishu push setup (optional)](#feishu-push-setup-optional)
 - [Windows build](#windows-build)
 - [Data & security](#data--security)
@@ -45,20 +46,23 @@
 
 ## What it solves
 
-- Bulk screening lacks a consistent standard, so scoring is subjective and hard to audit.
-- AI judgments often lack source evidence, leading to unsupported conclusions.
-- Key hiring steps live in separate tools, producing inconsistent deliverables that are hard to retain.
+During peak hiring, HR gets buried in repetitive work and real time for judgment keeps shrinking:
 
-Talent Hub turns key hiring evaluation steps into evidence-driven, verifiable, deliverable workflows, with a local-first approach that balances efficiency and data privacy.
+- **More resumes than there is time to read** — screening means reading every one; under pressure it's easy to score on instinct and miss good fits.
+- **Inconsistent standards, hard-to-explain calls** — different people, different days, different verdicts, and there's no grounding for keeping or dropping someone when candidates or hiring managers push back.
+- **Key steps scattered across tools** — screening, phone checks, and result organizing live in separate places, so information gets fragmented, easily missed, and hard to turn into reusable records.
+
+Talent Hub ties the most time-consuming, judgment-heavy steps into one flow: every call has a traceable basis, uncertain points are flagged for you, and results are ready to use — with data staying on your machine for both efficiency and confidentiality.
 
 ## HR productivity scenarios
 
-| Scenario | Outcome |
-| --- | --- |
-| **Bulk screening without reading every resume** | Upload a job description and a batch of resumes; the system screens them against one consistent standard and tells you who is worth interviewing, who needs a phone call, and who to skip — so HR can focus on the top candidates at a glance. |
-| **Every conclusion has a source, no rework in review** | Each judgment comes with the original resume wording as evidence, and anything uncertain is flagged for confirmation. HR reviews the supporting quotes directly instead of re-reading the whole resume. |
-| **No more manual call notes** | Upload recordings for multiple candidates at once; the system transcribes them and organizes the key points, flagging anything uncertain. HR reviews and exports the record — no more listening to every call and writing minutes by hand. |
-| **Ready-to-use results in one click** | Automatically generates a candidate evaluation sheet and a shortlist, ready to move the interview process forward and archive — no manual reassembly needed. |
+| Step | The usual bottleneck | After Talent Hub |
+| --- | --- | --- |
+| **Bulk screening** | Dozens to hundreds of resumes, read one by one and scored on instinct, so the bar shifts and good candidates get missed. | Upload a role description and a stack of resumes; get a tiered shortlist screened against one consistent standard at a glance. |
+| **Justifying & reviewing calls** | Candidates ask where they stand and hiring managers want the "why", but the reasoning isn't grounded; reviewing means re-reading everything. | Each judgment comes with a traceable basis, anything uncertain is flagged, and review only checks the evidence — no more full re-reads. |
+| **Phone confirmation** | Play back recordings, jot notes by hand, then organize and archive — slow and easy to miss things. | Upload recordings for several candidates at once; the key points are organized and anything uncertain is flagged, then reviewed and exported for records. |
+| **Delivering results** | Lists and notes live in different tools with no uniform format, so consolidating takes time and invites mistakes. | Automatically produce one unified evaluation outcome and shortlist, ready for scheduling and archiving. |
+| **Sharing results** | Watching progress at the computer, then manually formatting and forwarding the outcome to the group to keep teammates in the loop. | When a task finishes, the result summary is pushed automatically to your Feishu group, so you see the ranking and calls from your phone — no refreshing, no manual forwarding. |
 
 ## Current capabilities
 
@@ -122,6 +126,41 @@ The app opens your default browser on startup. On first use, enter the model ser
 
 > [!NOTE]
 > Text-based PDF, DOCX, TXT, and Markdown need no OCR. For scanned PDFs or images, install Tesseract and set the `tesseract.exe` path in Settings (install the `chi_sim` language pack for Chinese resumes).
+
+## Application settings
+
+The Settings dialog (top-right) centrally manages the options below. "Model base URL / API key / Model name" are required; the rest are optional or tuned on demand.
+
+| Setting | Default / range | Description |
+| --- | --- | --- |
+| Model base URL | `https://api.openai.com/v1` | An OpenAI Chat Completions-compatible service supporting `/chat/completions` and JSON output; must end in `/v1`. |
+| API key | empty | Model service access key, encrypted locally with DPAPI, never shown in plain text. |
+| Model name | empty | The model identifier to use, as defined by your model provider. |
+| Concurrency | 6 (1–12) | Number of candidates processed in parallel per batch. Higher is faster but is limited by the provider's rate limits; lower it when rate-limited. |
+| Request timeout (seconds) | 180 (30–600) | Timeout for a single model request; increase it when the model responds slowly. |
+| Tesseract path | empty | Path to `tesseract.exe` for scanned PDFs or image resumes. Not needed for text PDF/DOCX/TXT/Markdown; install the `chi_sim` language pack for Chinese resumes. |
+| Retain parsed text | on | Whether to keep the parsed resume text locally. Turn off to stop storing parsed text and reduce local data retention. |
+| Speech-to-text key | empty | Volcano Engine large-model speech recognition (audio-file fast version) API key, used for phone-call transcription; encrypted with DPAPI. |
+| Phone Q&A detail (verbatim transcript) | off | When enabled, phone summarization also produces a full Q&A transcript; off by default to greatly cut processing time. |
+
+### Speech-to-text (Volcano Engine) setup
+
+Phone-call transcription uses **Volcano Engine large-model speech recognition (audio-file fast version)** and needs just one API key.
+
+1. Open the [Volcano Engine Speech / Doubao voice console](https://console.volcengine.com/speech/app) and log in (register and complete real-name verification first if needed).
+2. Create an app and be sure to select **"Audio-file fast version / Large-model speech recognition fast version"** (resource `volc.bigasr.auc_turbo`); do not pick the standard or streaming variant, which cannot transcribe local files.
+3. In the console's "API key" page (new console), copy the **API key**.
+4. In the app's Settings, paste that key into "Speech-to-text key" and save.
+
+> [!NOTE]
+> Transcription is billed by Volcano Engine by transcript duration; check the free allowance and resource packs in the console first. Transcripts and organized records stay on your machine and are never uploaded to the model service.
+
+### Environment variables (optional)
+
+| Variable | Description |
+| --- | --- |
+| `TALENT_HUB_API_KEY` | Injects the model API key via environment variable; useful on non-Windows systems or wherever saving the key in Settings is inconvenient. A key saved in Settings takes precedence; this variable is used as a fallback. |
+| `TALENT_HUB_DATA_DIR` | Overrides the default data directory `%LOCALAPPDATA%\TalentHub`, which stores settings, task materials, parsed text, and result files. |
 
 ## Feishu push setup (optional)
 
