@@ -360,11 +360,15 @@ function appendCell(row, value, className = "") {
 export function renderResults(job) {
   document.body.dataset.view = "results";
   showSection("resultsView");
-  $("resultActions").hidden = false;
+  const completed = job.status === "completed";
+  $("resultActions").hidden = !completed;
   $("viewTitle").textContent = displayJobTitle(job.title);
   const appendButton = $("appendResumesButton");
-  appendButton.hidden = Boolean(job.archived_at);
-  $("editCriteriaButton").hidden = Boolean(job.archived_at);
+  appendButton.hidden = !completed || Boolean(job.archived_at);
+  $("retrySavedJobButton").hidden = completed || Boolean(job.archived_at);
+  $("retryJobNotificationButton").hidden = !completed || Boolean(job.archived_at);
+  $("editCriteriaButton").hidden = !completed || Boolean(job.archived_at);
+  $("compareButton").hidden = !completed;
   const all = job.results || [];
   const counts = {
     all: all.length,
@@ -405,6 +409,7 @@ export function renderResults(job) {
       compareCell.className = "compare-cell";
       const box = document.createElement("input");
       box.type = "checkbox";
+      box.disabled = !completed;
       if (item.conclusion === "C不推进") {
         box.disabled = true;
         box.title = t("compareExcludeC");
@@ -471,7 +476,7 @@ export async function loadJob(id) {
     const otherIndex = other.findIndex((item) => item.id === id);
     if (otherIndex >= 0) other.splice(otherIndex, 1);
     renderHistory();
-    if (job.status === "completed") renderResults(job);
+    if (job.status === "completed" || (job.status === "failed" && job.results?.length)) renderResults(job);
     else if (job.status === "waiting") renderCriteriaReview(job);
     else renderProgress(job);
     if (["queued", "running"].includes(job.status)) schedulePoll();
@@ -503,7 +508,8 @@ function schedulePoll() {
         renderResults(job);
         showToast(t("completedToast"));
       } else if (["failed", "cancelled"].includes(job.status)) {
-        renderProgress(job);
+        if (job.status === "failed" && job.results?.length) renderResults(job);
+        else renderProgress(job);
         showToast(job.status === "cancelled" ? t("cancelledToast") : t("failedToast"));
       } else if (job.status === "waiting") {
         renderCriteriaReview(job);
@@ -630,6 +636,8 @@ async function cancelCurrentJob() {
 
 async function retryCurrentJob() {
   if (!state.currentJob) return;
+  state.compareSelection = new Set();
+  updateCompareButton();
   try {
     state.currentJob = await api(`/api/jobs/${state.currentJob.id}/start`, { method: "POST" });
     renderProgress(state.currentJob);
@@ -637,12 +645,27 @@ async function retryCurrentJob() {
   } catch (error) { showToast(error.message); }
 }
 
+async function retryJobNotification() {
+  const job = state.currentJob;
+  if (!job) return;
+  const button = $("retryJobNotificationButton");
+  setButtonBusy(button, true);
+  try {
+    const result = await api(`/api/jobs/${job.id}/retry-notification`, { method: "POST" });
+    state.currentJob = result.job || state.currentJob;
+    renderResults(state.currentJob);
+    if (result.errors?.length) showToast(result.errors.join("\n"));
+    else showToast(t(result.sent ? "feishuNotificationSent" : "feishuNotificationNotSent"));
+  } catch (error) { showToast(error.message); }
+  finally { setButtonBusy(button, false); }
+}
+
 export function init() {
   onChange(() => {
     renderSelectedMaterials();
     if (routerCurrentView() !== "screening") return;
     if (state.currentJob) {
-      if (state.currentJob.status === "completed") renderResults(state.currentJob);
+      if (state.currentJob.status === "completed" || (state.currentJob.status === "failed" && state.currentJob.results?.length)) renderResults(state.currentJob);
       else if (state.currentJob.status === "waiting") renderCriteriaReview(state.currentJob);
       else renderProgress(state.currentJob);
     } else {
@@ -658,6 +681,8 @@ export function init() {
   });
   $("cancelJobButton").addEventListener("click", cancelCurrentJob);
   $("retryJobButton").addEventListener("click", retryCurrentJob);
+  $("retrySavedJobButton").addEventListener("click", retryCurrentJob);
+  $("retryJobNotificationButton").addEventListener("click", retryJobNotification);
   $("downloadResultButton").addEventListener("click", () => openArtifactPreview("workbook"));
   $("downloadCriteriaButton").addEventListener("click", () => openArtifactPreview("criteria"));
   $("editCriteriaButton").addEventListener("click", () => {

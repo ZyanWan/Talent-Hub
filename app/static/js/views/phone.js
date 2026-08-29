@@ -467,6 +467,7 @@ function renderCallDetail({ preservePlayback = false } = {}) {
   $("callDetailMeta").textContent = meta.join(" · ");
   const running = ["queued", "running"].includes(call.status);
   $("callCancelButton").hidden = !running;
+  $("retryCallNotificationButton").hidden = running || Boolean(call.archived_at);
   $("callRetryButton").hidden = running || call.archived_at || !["failed", "cancelled"].includes(call.status);
   // 追加录音 FAB：仅已完成且未归档的任务显示（与筛选"追加简历"同款交互）。
   $("appendCallAudioButton").hidden = call.status !== "done" || Boolean(call.archived_at);
@@ -930,6 +931,22 @@ async function retryCall() {
   }
 }
 
+async function retryCallNotification() {
+  const call = state.currentCall;
+  if (!call) return;
+  const button = $("retryCallNotificationButton");
+  setButtonBusy(button, true);
+  try {
+    const result = await api(`/api/calls/${call.id}/retry-notification`, { method: "POST" });
+    state.currentCall = result.call || state.currentCall;
+    renderCallDetail();
+    refreshCallHistoryData({ render: false });
+    if (result.errors?.length) showToast(result.errors.join("\n"));
+    else showToast(t(result.sent ? "feishuNotificationSent" : "feishuNotificationNotSent"));
+  } catch (error) { showToast(error.message); }
+  finally { setButtonBusy(button, false); }
+}
+
 function startCallPolling() {
   stopCallPolling();
   state.callPollTimer = setTimeout(pollCall, 2500);
@@ -979,6 +996,7 @@ export function init() {
   });
   $("callCancelButton").addEventListener("click", cancelCall);
   $("callRetryButton").addEventListener("click", retryCall);
+  $("retryCallNotificationButton").addEventListener("click", retryCallNotification);
   $("callJobLinkSelect").addEventListener("change", importCallJobFocus);
   callJobSelect = createCustomSelect({ wrap: $("callJobLinkSelectWrap"), select: $("callJobLinkSelect") });
   $("callItemDetailBack").addEventListener("click", closeCallItemDetail);

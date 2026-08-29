@@ -73,9 +73,10 @@ class JsonStore:
             record.setdefault("archived_at", None)
             return record
 
-    def save(self, record: dict) -> None:
+    def save(self, record: dict, *, preserve_updated_at: bool = False) -> None:
         with self._lock:
-            record["updated_at"] = utc_now()
+            if not preserve_updated_at:
+                record["updated_at"] = utc_now()
             directory = self._item_dir(record["id"])
             directory.mkdir(parents=True, exist_ok=True)
             descriptor, temp_name = tempfile.mkstemp(
@@ -176,6 +177,13 @@ class JobRepository(JsonStore):
             "results": [],
             "output_file": "",
             "criteria_file": "",
+            "feishu_notification_version": 1,
+            "feishu_criteria_fingerprint": "",
+            "feishu_notified_resume_hashes": [],
+            "feishu_baseline_resume_hashes": [],
+            "feishu_notified_at": None,
+            "feishu_rescreen_pending": False,
+            "feishu_baseline_at": now,
         }
 
     def _make_dirs(self, record_dir: Path) -> None:

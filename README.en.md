@@ -73,9 +73,10 @@ Currently supported modules — more will follow:
 | Capability | Description |
 | --- | --- |
 | **Criteria first** | Generates the job essence, target profile, business scenarios, key actions, hard requirements, negative signals, and A/B/C decision rules from the JD. |
-| **Evidence-driven evaluation** | Match and mismatch judgments must quote resume source text; key evidence that cannot be verified against the source is downgraded or sent to manual review. |
+| **Evidence-driven evaluation** | Match and mismatch judgments must be grounded in the resume source: direct quotes are preferred, and reasonable inference from the full experience is allowed; judgments with no traceable basis in the source are downgraded or sent to manual review. |
 | **Tiered recommendations** | Outputs "Interview first (A)", "Confirm by phone (B)", and "Do not proceed (C)", with risk notes and phone-confirmation questions. |
-| **Batch evaluation** | Supports 1–12 concurrent candidates in a single pass with no second model call. |
+| **Batch evaluation** | Supports 1–12 concurrent candidates in a single pass with no second model call; one parsing or model-request failure does not stop the remaining resumes. |
+| **Saved partial results** | Each successful evaluation is saved locally immediately; if batch finalization fails, completed candidates remain viewable and the run can be restarted, while download, append, and notification actions stay unavailable until formal artifacts exist. |
 | **Side-by-side comparison** | Ranks selected candidates with AI and outputs the recommended interview order with reasons. |
 | **Multi-format parsing** | Supports PDF, DOCX, TXT, Markdown, and common image formats; scanned documents can use Tesseract OCR. |
 | **Deliverable results** | Generates and validates a five-sheet Excel workbook (candidate summary, evidence matching, phone-confirmation questions, screening criteria, recommendation list) plus Markdown screening criteria. |
@@ -93,10 +94,12 @@ Currently supported modules — more will follow:
 
 | Capability | Description |
 | --- | --- |
-| **Auto notification on completion** | Pushes a result summary to a designated Feishu group when resume screening or phone screening finishes. |
-| **Summary messages** | Screening pushes the role, candidate count, A/B/C conclusion distribution, and the top 5 candidates (name + conclusion + evidence level); phone screening pushes the task title, completed item count, and each candidate's key confirmed fields. |
+| **Auto notification on completion** | Pushes results to a designated Feishu group when resume screening or phone screening finishes. |
+| **HR-focused result messages** | Each resume-screening run sends one overview with submitted/successful/failed counts, A/B/C distribution, and one-line judgments for up to five A/B candidates; phone screening sends one redacted full organized record per candidate. |
+| **Incremental deduplication** | Appended resumes notify only newly evaluated results and include the cumulative role total; appended recordings send only entries not yet pushed successfully; a full re-screen after criteria changes is notified as a new version. |
+| **Reliable delivery** | Transient network errors, HTTP 429, and 5xx responses receive limited retries with rate limiting; push failures are recorded without changing the screening or phone task's business status. |
+| **Manual notification retry** | From a completed screening result or phone task detail, click "Retry Feishu notification" to send only pending results and see whether this attempt actually sent anything. |
 | **Test Feishu link** | One-click test message in Settings to verify Webhook connectivity. |
-| **Failure never affects tasks** | A failed push only records a notice; it never changes the task's completion state. |
 
 ## Technical highlights
 
@@ -137,7 +140,7 @@ The Settings dialog (top-right) centrally manages the options below. "Model base
 | API key | empty | Model service access key, encrypted locally with DPAPI, never shown in plain text. |
 | Model name | empty | The model identifier to use, as defined by your model provider. |
 | Concurrency | 6 (1–12) | Number of candidates processed in parallel per batch. Higher is faster but is limited by the provider's rate limits; lower it when rate-limited. |
-| Request timeout (seconds) | 180 (30–600) | Timeout for a single model request; increase it when the model responds slowly. |
+| Request timeout (seconds) | 180 (30–600) | Timeout for a single model request; increase it when the model responds slowly. Criteria generation tries up to 3 times; each candidate evaluation allows up to 2 model transport attempts. |
 | Tesseract path | empty | Path to `tesseract.exe` for scanned PDFs or image resumes. Not needed for text PDF/DOCX/TXT/Markdown; install the `chi_sim` language pack for Chinese resumes. |
 | Retain parsed text | on | Whether to keep the parsed resume text locally. Turn off to stop storing parsed text and reduce local data retention. |
 | Speech-to-text key | empty | Volcano Engine large-model speech recognition (audio-file fast version) API key, used for phone-call transcription; encrypted with DPAPI. |
@@ -164,14 +167,14 @@ Phone-call transcription uses **Volcano Engine large-model speech recognition (a
 
 ## Feishu push setup (optional)
 
-When enabled, result summaries are pushed to a designated Feishu group after resume screening or phone screening finishes.
+When enabled, each resume-screening run pushes one business overview, while phone screening pushes one organized record per candidate. Appended work notifies only new results that have not been pushed successfully; a full re-screen after criteria changes is notified as a new version.
 
 1. In the Feishu desktop client, open the target group → top-right settings → Group bots → Add bot → **Custom bot** → set a name and add it.
 2. Copy the generated **Webhook URL** (e.g. `https://open.feishu.cn/open-apis/bot/v2/hook/xxxx`).
 3. In the app's Settings dialog, under the "Feishu push" section: check "Automatically push results to the Feishu group when tasks finish", paste the Webhook URL, click "Test Feishu link" to verify, then save.
 
 > [!TIP]
-> ① If signature verification is not enabled, leave the signature secret blank; if you enable "Signature verification" in Feishu, paste the generated secret into "Feishu push · Signature secret". ② Do not set a "custom keyword" on the bot — messages without the keyword would be blocked by Feishu. ③ Push content contains only candidate names, conclusions, and key field summaries — never contact info or raw transcripts.
+> ① If signature verification is not enabled, leave the signature secret blank; if you enable "Signature verification" in Feishu, paste the generated secret into "Feishu push · Signature secret". ② Do not set a "custom keyword" on the bot — messages without the keyword would be blocked by Feishu. ③ Resume messages contain only statistics, candidate names, conclusions, and one-line judgments. Phone messages contain the app's text-based organized record, but mobile numbers, landlines, and email addresses are redacted; raw transcripts, internal facts, and citations are not appended. Oversized phone messages are truncated with a prompt to view the full record in Talent Hub.
 
 ## Windows build
 

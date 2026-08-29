@@ -42,6 +42,9 @@ class CallRepository(JsonStore):
             "audio_hashes": {},
             "items": [],
             "errors": [],
+            "feishu_baseline_item_ids": [],
+            "feishu_baseline_version": 1,
+            "feishu_baseline_at": now,
         }
 
     def _make_dirs(self, record_dir: Path) -> None:
@@ -52,8 +55,33 @@ class CallRepository(JsonStore):
     def call_dir(self, call_id: str) -> Path:
         return self._item_dir(call_id)
 
+    def _ensure_feishu_baseline(self, record: dict) -> dict:
+        if "feishu_baseline_version" in record:
+            return record
+        if record.get("status") not in {"done", "failed", "cancelled"}:
+            record["feishu_baseline_item_ids"] = []
+            record["feishu_baseline_version"] = 1
+            record["feishu_baseline_at"] = None
+            self.save(record, preserve_updated_at=True)
+            return record
+        baseline = [
+            item.get("id") for item in record.get("items", [])
+            if item.get("status") == "done" and (item.get("summary") or {}).get("narrative")
+            and "feishu_push_status" not in item
+        ]
+        record["feishu_baseline_item_ids"] = sorted(filter(None, baseline))
+        record["feishu_baseline_version"] = 1
+        from .repository import utc_now
+        record["feishu_baseline_at"] = utc_now()
+        self.save(record, preserve_updated_at=True)
+        return record
+
+    def get(self, call_id: str) -> dict:
+        with self._lock:
+            return self._ensure_feishu_baseline(super().get(call_id))
+
     def list_calls(self, *, archived: bool, limit: int | None = None, offset: int = 0) -> list[dict]:
-        return self.list_records(archived=archived, limit=limit, offset=offset)
+        return [self._ensure_feishu_baseline(record) for record in self.list_records(archived=archived, limit=limit, offset=offset)]
 
     def reserve_audio(self, call_id: str, original_name: str) -> tuple[str, Path]:
         filename = safe_filename(original_name)
@@ -90,6 +118,8 @@ class CallRepository(JsonStore):
                 "error": "",
                 "transcript_file": "",
                 "summary": None,
+                "feishu_push_status": "pending",
+                "feishu_pushed_at": None,
             }
             record["items"] = [*record.get("items", []), item]
             self.save(record)

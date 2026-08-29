@@ -9,7 +9,7 @@
 Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使用原生 HTML、CSS 和 JavaScript。它包含两条主要业务链路：
 
 1. 简历筛选：JD、简历上传、标准生成与人工校准、候选人评估、证据校验、硬性门槛程序化过滤、A/B/C 分级、Excel 交付和候选人横向对比。
-2. 电话确认：录音上传、火山引擎 ASR、AI 整理（含内部文本重建与结构化 Remark、软性 8 维度框架观察、四层整理记录 narrative）、事实与软性引用双重守卫、人工编辑和 Markdown 下载。
+2. 电话确认：录音上传、火山引擎 ASR、AI 单次结构化整理（含动态 Remark、软性 8 维度框架概述和可选快筛问答）、三层整理记录 narrative、事实引用守卫、人工编辑和 Markdown 下载。软性概述由 Prompt 约束并由 HR 人工复核，不经过独立的程序化引用守卫。
 
 系统边界：
 
@@ -26,7 +26,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | --- | --- | --- |
 | `app/main.py` | 应用装配、路由、令牌中间件、上传限制、下载和预览、服务启动 | 前端全部 API、仓储、筛选引擎、电话处理器 |
 | `app/config.py` | 数据目录、配置模型、DPAPI、配置迁移和公开配置 | 模型调用、ASR、飞书推送、前端设置、发布运行环境 |
-| `app/feishu.py` | 飞书 Webhook 推送：签名、发送、筛选/电话消息构建、大小保护、惰性推送 `push_if_enabled` | `main.py`（feishu-test）、`pipeline.py`、`phone_screening.py`、设置配置 |
+| `app/feishu.py` | 飞书 Webhook 推送：签名、统一脱敏、筛选/电话消息构建、20KB 大小保护、有限重试、频控及带成功状态的 `push_with_status` | `main.py`（feishu-test）、`pipeline.py`、`phone_screening.py`、设置配置 |
 | `app/models.py` | 筛选（含硬性门槛判定）、证据、电话摘要（动态章节/软性观察/快筛问答）的 Pydantic 契约 | Prompt 输出、持久化 JSON、Excel、前端字段 |
 | `app/repository.py` | `JsonStore` 通用 JSON 仓储、岗位任务 JSON、文件目录、归档、删除、路径和文件名安全 | `main.py`、`pipeline.py`、`call_repository.py`、任务恢复 |
 | `app/call_repository.py` | 电话任务（含 soft_skill_focus、soft_skill_dimensions、job_id）、音频与条目持久化 | `main.py`、`phone_screening.py`、前端电话页 |
@@ -39,7 +39,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | `app/runtime/workbook_contract.py` | 五表名称、表头、枚举和格式契约 | 构建器、校验器、验证、业务输出 |
 | `app/runtime/call_state.py` | 电话条目状态机和中断收敛 | `phone_screening.py`、电话重试和取消 |
 | `app/runtime/speech_to_text.py` | 火山 ASR 请求、音频输入校验、请求参数和转写渲染 | 电话处理器、ASR 验证 |
-| `app/runtime/phone_screening.py` | 电话处理、事实与软性观察双重守卫、软性 8 维度框架注入、四层 narrative 渲染（客观记录/概述/观察/快筛详情）、Markdown | 电话任务状态、摘要文件、前端电话详情 |
+| `app/runtime/phone_screening.py` | 电话处理、事实引用守卫、软性 8 维度框架注入、三层 narrative 渲染（客观记录/软性表现概述/可选快筛详情）、Markdown | 电话任务状态、摘要文件、前端电话详情 |
 | `app/resources/references/` | 运行时参考规则库：证据规则、Excel/PDF 规则、易错点和软性素质框架 | `pipeline.py`、`phone_screening.py`、Prompt 与守卫规则 |
 | `app/static/index.html` | 页面结构、对话框和 DOM 锚点 | `js/` 模块、`styles.css`、首页验证 |
 | `app/static/app.js` | 前端模块化入口：imports → 各模块 `init()` → `bootstrap()` | `js/` 模块、`shell.js` |
@@ -104,12 +104,12 @@ FastAPI app/main.py
   │    ├─ OpenAICompatibleClient ─ app/llm.py ── 外部模型 API
   │    ├─ build_candidate_workbook.py
   │    ├─ validate_workbook.py
-  │    └─ push_if_enabled ──────── app/feishu.py ── 飞书 Webhook（筛选完成）
+  │    └─ push_with_status ─────── app/feishu.py ── 飞书 Webhook（筛选总览）
   ├─ CallRepository ────────────── app/call_repository.py ── calls/<call_id>/
   ├─ CallProcessor ─────────────── phone_screening.py
   │    ├─ speech_to_text.py ── 火山 ASR API
   │    ├─ OpenAICompatibleClient ── 外部模型 API
-  │    └─ push_if_enabled ──────── app/feishu.py ── 飞书 Webhook（电话完成）
+  │    └─ push_with_status ─────── app/feishu.py ── 飞书 Webhook（逐条电话记录）
   └─ artifact_preview.py ───────── Markdown / XLSX 限量预览
 ```
 
@@ -167,16 +167,19 @@ EvaluationEngine / CallProcessor / settings test / feishu-test / compare
   → OpenAICompatibleClient(base_url, api_key, model, timeout)
 ```
 
-飞书推送时（`push_if_enabled`）：
+飞书推送时（`push_with_status`）：
 
 ```text
-pipeline._run / phone_screening._run（置终态前）
-  → push_if_enabled(settings_store, build_fn, *args)
+pipeline._run / phone_screening._run（置业务终态前）或独立通知重试 API
+  → 按通知状态筛出未成功、且不属于历史基线的结果
+  → push_with_status(settings_store, build_fn, *args)
   → SettingsStore.load() 读最新配置（推送偏好即时生效，不沿用任务快照）
-  → 开关关闭或 webhook 为空 → 返回 None，不发起请求
-  → 同一 try 内：build_fn(*args) 构建消息 → send_message() 发送
-  → 任何异常 → 返回「飞书推送失败：…」字符串，绝不外抛（构建/发送均受保护）
-  → 错误字符串并入任务终态 update 的 errors
+  → 开关关闭或 webhook 为空 → 返回 (False, None)，不发起请求
+  → 构建 post 消息 → 统一隐藏手机号/座机/邮箱 → 检查大小 → send_message()
+  → 连接/超时、HTTP 429/5xx 最多 3 次总尝试；电话逐条发送与重试共用 5 次/秒、100 次/分钟频控
+  → 仅飞书业务码 code=0 返回成功；成功后立即原子推进对应通知状态
+  → 独立重试响应 sent 仅表示本次至少一条真实发送成功；无待发结果或配置关闭时为 false
+  → 任何异常转为脱敏错误，绝不改变业务终态
 ```
 
 关键约束：
@@ -185,6 +188,9 @@ pipeline._run / phone_screening._run（置终态前）
 - 前端设置框不会回填已保存密钥；空输入表示保留旧值。
 - ASR 与飞书签名密钥都有显式清除语义（`clear_asr` / `clear_feishu_sign`），不能与"留空保留"混淆。
 - 推送挂点位于任务置终态（completed/done）**之前**：前端轮询看到终态即停止，推送失败提示必须并入同一次终态 update 才会被用户看到。
+- 电话条目以 `feishu_push_status` / `feishu_pushed_at` 记录逐条成功；简历任务以 `feishu_criteria_fingerprint`、`feishu_notified_resume_hashes`、`feishu_notified_at` 和 `feishu_rescreen_pending` 记录标准版本与已通知内容指纹。
+- 升级前终态任务首次读取时建立独立历史基线：电话使用 `feishu_baseline_item_ids`，简历使用 `feishu_baseline_resume_hashes`；电话终态包括 `done`、`failed`、`cancelled`。基线只防止旧结果在追加任务时被重推，不代表历史上已发送成功，也不写入成功时间；该过程幂等且不发送消息，迁移写回保留原 `updated_at`，不改变历史排序。
+- 同一任务的自动通知与手动重试共用任务级互斥锁；后进入者须在前一次完成并推进通知状态后重新读取，避免并发重复发送。
 - `schema_version` 迁移影响旧用户升级。
 - 修改配置字段必须同步检查 `AppSettings`、设置请求模型、`PUT /api/settings`、`POST /api/settings/test`、`POST /api/settings/feishu-test`、`public_settings()`、前端表单、`settingsPayload()`、迁移验证。
 
@@ -269,6 +275,7 @@ POST /start（标准已就绪）
   → 每份简历 _evaluate_one()
      → extract_document()
      → evaluation_prompt(criteria, resume_text)
+     → chat_json(attempts=2)：单次候选人请求按配置超时，传输错误最多尝试 2 次
      → CandidateEvaluation.model_validate()
      → apply_evidence_guard(resume_text, evaluation)
      → apply_hard_gate_guard(criteria, resume_text, evaluation)
@@ -287,18 +294,18 @@ pipeline.extract_document()
 
 ### 6.5 证据守卫与分级
 
-模型输出的 `CandidateEvaluation` 不是最终结果。`apply_evidence_guard()` 将每个证据维度的 `quote` 与简历原文进行规范化连续子串比对。
+模型输出的 `CandidateEvaluation` 不是最终结果。`apply_evidence_guard()` 检查每个证据维度的“事实锚点”：`quote` 通过原文规范化连续子串比对，或 `summary` 含可命中原文的具体片段（≥4 字符连续片段 / 4 位以上数字 / 与原文共享 ≥4 个含汉字二元组，允许基于完整经历的合理推断）。
 
 ```text
 模型状态“匹配/不匹配”
-  ├─ 无 quote → 待确认
-  ├─ quote 不在原文 → 清空引用并降为待确认
-  └─ quote 有效 → 保留
+  ├─ quote 有效 → 保留（计入支持证据）
+  ├─ quote 无效但 summary 有事实锚点 → 清空引文、保留判定（推断，计入支持证据）
+  └─ quote 与 summary 均无事实锚点 → 待确认（完全编造或泛化空话被拦截）
 ```
 
 随后执行规则改判：
 
-- A 缺核心证据、核心引用失效或总证据不足 → B。
+- A 缺核心证据、核心维度无支撑或总证据不足 → B。
 - B 存在有原文支持的核心不匹配 → C。
 - B 没有任何有原文支持的核心正向匹配 → C。
 - B 没有电话问题 → 自动补一个通用问题。
@@ -317,11 +324,11 @@ pipeline.extract_document()
 
 硬性门槛守卫（`apply_hard_gate_guard`）：
 
-- `hard_gate` 与候选人评估在同一次模型调用中输出：按 `ScreeningCriteria.hard_requirements` 逐条给出 `met / unmet / unknown`，`met` 与 `unmet` 必须携带能通过原文校验的逐字引文。
-- 守卫校验：`met/unmet` 无引文或引文未通过校验 → 降为 `unknown`；criteria 中的硬性门槛未被模型判定 → 按 `unknown` 补齐并告警（防止模型漏判导致硬门槛失守）。
+- `hard_gate` 与候选人评估在同一次模型调用中输出：按 `ScreeningCriteria.hard_requirements` 逐条给出 `met / unmet / unknown`，`met` 与 `unmet` 必须有原文事实支撑：`quote` 通过原文校验，或 `note` 含事实锚点（允许基于教育时间线、连续工作经历等做高概率推断，如“学制连续完整的本科可推断全日制”）。
+- 守卫校验：`met/unmet` 引文与 note 均无事实锚点 → 降为 `unknown`；criteria 中的硬性门槛未被模型判定 → 按 `unknown` 补齐并告警（防止模型漏判导致硬门槛失守）。
 - 程序强制（先过滤语义，不再依赖模型自觉）：
   - 任一有效 `unmet` → 强制 `C`（覆盖模型结论）、清空电话问题；
-  - 存在 `unknown` → A 不得成立（降为 B），并确保生成 `focus=硬性条件核实-{id}` 的高优先级电话问题。
+  - 存在 `unknown` → A 不得成立（降为 B），并为未知门槛生成高优先级电话问题（合并为至多 2 个：第一条单独、其余合并）。
 - 修改硬性门槛结构时必须同步：criteria prompt、评估 prompt、`apply_hard_gate_guard()`、Excel 总表「硬性门槛判定」列、硬性门槛降档验证。
 
 ### 6.6 检查点、续跑和最终产物
@@ -334,7 +341,9 @@ pipeline.extract_document()
 3. 更新 job.json 的 results / completed / progress / results_meta
 ```
 
-这个顺序确保 `job.json` 不会领先于实际结果文件。不要随意交换顺序。
+这个顺序确保 `job.json` 不会领先于实际结果文件。不要随意交换顺序。Excel 校验通过后的最终 `评估结果.json` 与 `解析清单.json` 也使用同一原子写入函数，避免收尾中断破坏可续跑检查点。
+
+单份解析失败或模型异常只追加到 `job.errors`，不会终止其他候选人；只有没有任何成功评估，或 Excel 构建/阻断校验等批次级步骤失败，任务才进入 `failed`。
 
 全部候选人完成后：
 
@@ -346,7 +355,9 @@ pipeline.extract_document()
   → validate_workbook_detailed()
      ├─ 结构错误/安全错误：任务失败
      └─ 非阻断 warning：写入 job.errors
-  → stage=推送飞书通知 → push_if_enabled()（可选推送，见第 5 章）
+  → stage=推送飞书通知 → 按标准版本和简历内容指纹筛出未通知结果
+  → push_with_status() 发送 initial / incremental / rescreen 总览
+  → code=0 后合并 feishu_notified_resume_hashes 并记录通知时间
   → job: completed / progress=100（推送错误并入本次 update 的 errors）
 ```
 
@@ -391,8 +402,8 @@ failed / cancelled / completed
 | `queued` | 后台任务已排队 | 显示进度并轮询 |
 | `running` | 生成标准或评估中 | 显示取消并轮询 |
 | `waiting` | 等待 HR 校准标准 | 打开标准编辑器，停止轮询 |
-| `completed` | Excel 和结果已完成 | 结果页、追加简历、预览、下载 |
-| `failed` | 阶段失败或上次运行中断 | 显示错误和重试 |
+| `completed` | Excel 和结果已完成 | 结果页、追加简历、预览、下载；单份失败信息仍在结果页展示 |
+| `failed` | 阶段失败或上次运行中断 | 有 `results` 时展示已保留候选人和重新开始入口，并隐藏下载、追加、改标准和通知；无结果时显示普通错误页 |
 | `cancelled` | 用户取消并完成收敛 | 显示重试 |
 
 新增或重命名状态时，必须同步：引擎状态转换、仓储归档限制、路由冲突判断、前端 `schedulePoll()`、进度按钮、历史菜单、验证。
@@ -436,7 +447,7 @@ CandidateEvaluation[] + ScreeningCriteria
 
 ## 9. 电话确认端到端数据流
 
-电话链路保持单次模型调用：模型一次生成完整 `CallSummary`；程序事实守卫与软性观察守卫负责核验引用并降级无依据内容；人工编辑是最终校正边界。不存在二次模型复核。`CallRepository` 复用 `repository.py` 的 `JsonStore`，因此电话任务的 JSON 保存、归档、恢复、删除和锁语义与岗位任务共享同一底层仓储规则。
+电话链路保持单次模型调用：模型一次生成完整 `CallSummary`；程序事实守卫负责核验 `facts[].ref`，并将缺少有效事实依据的已确认字段降级为含糊。`soft_skill_summary` 是由 Prompt 约束的文本数组，不保存独立引用，也不经过程序化软性引用守卫，由 HR 人工复核；人工编辑是最终校正边界。不存在二次模型复核。`CallRepository` 复用 `repository.py` 的 `JsonStore`，因此电话任务的 JSON 保存、归档、恢复、删除和锁语义与岗位任务共享同一底层仓储规则。
 
 ### 9.1 创建和上传
 
@@ -570,7 +581,7 @@ failed/cancelled → process → running
 
 `call_state.py` 还定义了任务级 `queued`，并将其纳入运行态集合；当前 `CallProcessor.start()` 直接把任务置为 `running`，没有单独排队阶段。
 
-任务进入 `done` 前（`_run` else 分支）先执行 `stage=推送飞书通知` 与 `push_if_enabled()`（可选推送，见第 5 章），推送错误并入该次 update 的 `errors`（原硬编码 `errors=[]` 已改为动态列表）。
+电话业务处理结束、写入任务终态前，`_push_notifications()` 会按条目稳定顺序筛出 `done`、有 `summary.narrative`、不在历史基线且未成功推送的条目，并逐条调用 `push_with_status()`。每条仅在飞书返回 `code=0` 后原子写入 `feishu_push_status=succeeded` 与 `feishu_pushed_at`；失败条目保持 `pending`，后续条目继续发送。即使部分条目业务失败，已完成条目仍会尝试通知，任务最终业务状态仍由条目处理结果决定。
 
 条目状态：
 
@@ -638,7 +649,7 @@ C不推进
 
 ```text
 id, title, job_title, job_id, soft_skill_focus, soft_skill_dimensions,
-status, stage, progress, completed, total, created_at, updated_at,
+status, stage, progress, created_at, updated_at,
 archived_at, errors, items
 ```
 
@@ -662,6 +673,8 @@ extra_info, doubts, guard_warnings, transcript
 ```
 
 `fields[].key` 是人工编辑的稳定身份；`facts[].id` 是事实引用（字段 `fact_ids`）的稳定身份。修改它们会影响事实守卫、人工编辑和旧摘要兼容。
+
+前端实际直接消费的子集：任务字段中仅 `progress`、`created_at` 不被前端直接读取（电话任务结构不存在 `completed`/`total`，二者是 Job 任务专有字段）；摘要直接渲染 `narrative`、`fields[].{key,label,value}`、`facts[].{content,speaker,ref,start_time}`、`doubts`、`guard_warnings`、`transcript`；`remark_sections`、`soft_skill_summary`、`soft_skill_summary_title`、`qa_records` 由后端 `render_remark_narrative()` 渲染进 `narrative` 后间接消费；`call_date`、`extra_info`、`facts[].timestamp` 及 `fields[].{status,fact_ids,note}`（渲染路径）前端不直接读取，后者仅在编辑保存时透传。
 
 ### 11.4 前端轮询
 
@@ -721,7 +734,7 @@ FastAPI 异步请求
 | 如果修改 | 必须同步检查 |
 | --- | --- |
 | `AppSettings` 字段或默认值 | `config.py` 迁移和公开设置、`main.py` 请求模型及设置路由、`js/dialogs/settings.js` 表单和 payload、设置验证（含飞书三字段） |
-| 飞书推送逻辑（`app/feishu.py`、`push_if_enabled`、消息构建、签名） | `main.py` 的 `feishu-test`、`pipeline.py` / `phone_screening.py` 挂点、消息大小保护、前端测试按钮与文案、推送失败不改变任务状态的验证 |
+| 飞书推送逻辑（`app/feishu.py`、`push_with_status`、消息构建、脱敏、签名、重试与频控） | `main.py` 的 `feishu-test` / 两个 `retry-notification` API、`pipeline.py` / `phone_screening.py` 挂点、通知状态与历史基线、消息大小保护、前端测试按钮与文案、推送失败不改变业务状态的验证 |
 | 飞书密钥或 Webhook 字段 | `config.py` DPAPI、`merged_settings` exclude 集合、`public_dict` 公开字段、前端回显、清除语义 |
 | API 路径、方法或响应字段 | `main.py`、前端 js/ 模块所有调用和渲染、API 验证、必要时发布烟测 |
 | Job 状态或 stage 语义 | `pipeline.py`、仓储归档限制、`main.py` 冲突处理、前端轮询/按钮/历史、状态验证 |
@@ -807,7 +820,7 @@ FastAPI 异步请求
 - 电话整理结果允许 HR 修改。
 - Excel 校验只保证结构、安全和跨表一致性，不宣称业务判断必然正确。
 
-修复“通过率低”“A 类减少”“字段变成待确认”等问题时，应先检查模型引用是否真实、Prompt 和解析是否正确，不得直接放宽这些边界来制造表面成功。
+修复“通过率低”“A 类减少”“字段变成待确认”等问题时，应先检查模型引用是否真实、Prompt 和解析是否正确，不得直接放宽这些边界来制造表面成功。已按产品决策有意放宽的除外：2026-08 起允许基于完整经历的推断锚点与硬性门槛推断满足（见 6.5），用于压缩 B 类，其下限仍是“不得编造原文中不存在的事实”。
 
 ## 19. 文档维护要求
 

@@ -354,9 +354,10 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
     async def bootstrap():
         settings = settings_store.load()
         ocr = await run_in_threadpool(ocr_status, settings)
+        jobs = [engine._ensure_feishu_baseline(job) for job in repository.list_recent()]
         return {
             "settings": public_settings(settings, ocr),
-            "jobs": [public_job_summary(job) for job in repository.list_recent()],
+            "jobs": [public_job_summary(job) for job in jobs],
             "limits": {"file_mb": MAX_FILE_BYTES // 1024 // 1024},
         }
 
@@ -368,8 +369,9 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
     ):
         archived = scope == "archived"
         jobs = await run_in_threadpool(lambda: repository.list_jobs(archived=archived))
+        page = [engine._ensure_feishu_baseline(job) for job in jobs[offset:offset + limit]]
         return {
-            "jobs": [public_job_summary(job) for job in jobs[offset:offset + limit]],
+            "jobs": [public_job_summary(job) for job in page],
             "total": len(jobs),
         }
 
@@ -498,7 +500,7 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
     @app.put("/api/jobs/{job_id}/resumes")
     async def upload_resume(job_id: str, request: Request, filename: str):
         async with upload_locks.setdefault(job_id, asyncio.Lock()):
-            job = repository.get(job_id)
+            job = engine._ensure_feishu_baseline(repository.get(job_id))
             if job["status"] in {"queued", "running"}:
                 raise HTTPException(status_code=409, detail="任务运行中，不能添加简历。")
             if job.get("archived_at"):
@@ -579,6 +581,10 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
         except RuntimeError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.post("/api/jobs/{job_id}/retry-notification")
+    async def retry_job_notification(job_id: str):
+        return await run_in_threadpool(engine.retry_notification, job_id)
+
     @app.post("/api/jobs/{job_id}/cancel")
     async def cancel_job(job_id: str):
         try:
@@ -652,6 +658,10 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
             return public_call(call_processor.start(call_id))
         except RuntimeError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/calls/{call_id}/retry-notification")
+    async def retry_call_notification(call_id: str):
+        return await run_in_threadpool(call_processor.retry_notification, call_id)
 
     @app.get("/api/calls/{call_id}")
     async def get_call(call_id: str):
@@ -800,7 +810,7 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
     @app.get("/api/jobs/{job_id}")
     async def get_job(job_id: str):
         try:
-            return public_job(repository.get(job_id))
+            return public_job(engine._ensure_feishu_baseline(repository.get(job_id)))
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail="任务不存在。") from exc
 

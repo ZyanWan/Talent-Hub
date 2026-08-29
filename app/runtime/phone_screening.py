@@ -15,7 +15,7 @@ from pydantic import ValidationError
 
 from ..call_repository import CallRepository
 from ..config import AppSettings, SettingsStore
-from ..feishu import build_call_message, push_if_enabled
+from ..feishu import build_call_message, push_with_status
 from ..llm import LLMError, LLMRequestError, OpenAICompatibleClient
 from ..models import CallSummary
 from . import call_state
@@ -456,6 +456,7 @@ class CallProcessor:
         self._futures: dict[str, Future] = {}
         self._cancel_events: dict[str, threading.Event] = {}
         self._active_clients: dict[OpenAICompatibleClient, threading.Event | None] = {}
+        self._notification_locks: dict[str, threading.Lock] = {}
         self._lock = threading.Lock()
         self._mark_interrupted_calls()
 
@@ -660,6 +661,36 @@ class CallProcessor:
             summary=summary.model_dump(mode="json"),
         )
 
+    def retry_notification(self, call_id: str) -> dict:
+        with self._notification_lock(call_id):
+            call = self.repository.get(call_id)
+            errors, sent = self._push_notifications(call_id, call)
+            return {"sent": sent, "errors": errors, "call": self.repository.get(call_id)}
+
+    def _notification_lock(self, call_id: str) -> threading.Lock:
+        with self._lock:
+            return self._notification_locks.setdefault(call_id, threading.Lock())
+
+    def _push_notifications(self, call_id: str, call: dict) -> tuple[list[str], bool]:
+        baseline = set(call.get("feishu_baseline_item_ids") or [])
+        errors: list[str] = []
+        sent = False
+        for item in call.get("items", []):
+            summary = item.get("summary") or {}
+            pushed = item.get("feishu_push_status") == "succeeded" and bool(item.get("feishu_pushed_at"))
+            if item.get("id") in baseline or item.get("status") != "done" or not summary.get("narrative") or pushed:
+                continue
+            succeeded, error = push_with_status(self.settings_store, build_call_message, call.get("title"), item)
+            if succeeded:
+                from ..repository import utc_now
+                sent = True
+                self.repository.update_item(
+                    call_id, item["id"], feishu_push_status="succeeded", feishu_pushed_at=utc_now(),
+                )
+            elif error:
+                errors.append(f"条目 {item['id']}：{error}")
+        return errors, sent
+
     def _run(self, call_id: str, settings: AppSettings) -> None:
         cancel_event = self._cancel_events.get(call_id)
         try:
@@ -702,18 +733,17 @@ class CallProcessor:
                         errors=errors, stage=f"处理中 {done}/{total}",
                     )
             final = self.repository.get(call_id)
-            if call_state.any_item_failed(final.get("items", [])):
-                self.repository.update(call_id, status="failed", stage="任务失败", errors=errors)
-            else:
-                self.repository.update(call_id, stage="推送飞书通知")
-                push_error = push_if_enabled(
-                    self.settings_store, build_call_message,
-                    final.get("title"), final.get("items", []),
-                )
-                self.repository.update(
-                    call_id, status="done", stage="处理完成", progress=100,
-                    completed=total, errors=[push_error] if push_error else [],
-                )
+            business_failed = call_state.any_item_failed(final.get("items", []))
+            self.repository.update(call_id, stage="推送飞书通知")
+            with self._notification_lock(call_id):
+                final = self.repository.get(call_id)
+                push_errors, _ = self._push_notifications(call_id, final)
+            final_errors = [*errors, *push_errors]
+            self.repository.update(
+                call_id, status="failed" if business_failed else "done",
+                stage="任务失败" if business_failed else "处理完成", progress=100,
+                completed=call_state.terminal_item_count(final.get("items", [])), errors=final_errors,
+            )
         except InterruptedError:
             call = self.repository.get(call_id)
             # 收敛未完成的条目为 queued，保证取消后可通过重新整理继续处理
