@@ -23,8 +23,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/OCR-Tesseract-B45F2A?style=flat" alt="OCR: Tesseract" />
   <img src="https://img.shields.io/badge/ASR-Volcano%20Engine-3370FF?style=flat" alt="ASR: Volcano Engine" />
-  <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=flat&amp;logo=windows&amp;logoColor=white" alt="Platform: Windows" />
-  <img src="https://img.shields.io/badge/Packaging-PyInstaller%20%2B%20Inno%20Setup-8AA0B5?style=flat" alt="Packaging: PyInstaller + Inno Setup" />
+  <img src="https://img.shields.io/badge/Platform-Windows%20%2B%20macOS-555555?style=flat" alt="Platform: Windows + macOS" />
+  <img src="https://img.shields.io/badge/Packaging-PyInstaller-8AA0B5?style=flat" alt="Packaging: PyInstaller" />
 </p>
 
 > [!IMPORTANT]
@@ -40,6 +40,7 @@
 - [Application settings](#application-settings)
 - [Feishu push setup (optional)](#feishu-push-setup-optional)
 - [Windows build](#windows-build)
+- [macOS build](#macos-build)
 - [Data & security](#data--security)
 - [Project layout](#project-layout)
 - [Limitations](#limitations)
@@ -103,15 +104,15 @@ Currently supported modules — more will follow:
 
 ## Technical highlights
 
-- **Local-first**: data is stored in `%LOCALAPPDATA%\TalentHub`, never in the source tree.
-- **Key security**: model, ASR, and Feishu signature keys are encrypted with the current Windows user's DPAPI.
+- **Local-first**: data is stored on the user's machine (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`), never in the source tree.
+- **Key security**: Windows encrypts model, ASR, and Feishu signature keys with the current user's DPAPI; macOS uses environment variables for secrets.
 - **Loopback isolation**: the service listens on `127.0.0.1` only and generates a per-session token at startup.
 - **Lightweight frontend**: vanilla HTML/CSS/JS with no frontend framework.
 - **Optional Feishu notifications**: pushes result summaries via a Feishu custom bot Webhook, with no new third-party dependency.
 
 ## Quick start (development)
 
-**Prerequisites**: Windows, Python, and an OpenAI Chat Completions-compatible model service.
+**Prerequisites**: Windows or macOS, Python, and an OpenAI Chat Completions-compatible model service.
 
 1. Install dependencies:
 
@@ -121,14 +122,23 @@ Currently supported modules — more will follow:
 
 2. Start the app:
 
+   Windows:
+
    ```powershell
    python -X utf8 -m app.main
    ```
 
-The app opens your default browser on startup. On first use, enter the model service base URL, API key, and model name in Settings, then test the connection.
+   macOS:
+
+   ```bash
+   export TALENT_HUB_API_KEY="your model API key"
+   python -X utf8 -m app.main
+   ```
+
+The app opens your default browser on startup. On first use, enter the model service base URL, API key, and model name in Settings, then test the connection; on macOS, configure secrets with environment variables.
 
 > [!NOTE]
-> Text-based PDF, DOCX, TXT, and Markdown need no OCR. For scanned PDFs or images, install Tesseract and set the `tesseract.exe` path in Settings (install the `chi_sim` language pack for Chinese resumes).
+> Text-based PDF, DOCX, TXT, and Markdown need no OCR. For scanned PDFs or images, install Tesseract and set the Tesseract executable path in Settings (install the `chi_sim` language pack for Chinese resumes). On macOS, install it with `brew install tesseract tesseract-lang`.
 
 ## Application settings
 
@@ -137,13 +147,13 @@ The Settings dialog (top-right) centrally manages the options below. "Model base
 | Setting | Default / range | Description |
 | --- | --- | --- |
 | Model base URL | `https://api.openai.com/v1` | An OpenAI Chat Completions-compatible service supporting `/chat/completions` and JSON output; must end in `/v1`. |
-| API key | empty | Model service access key, encrypted locally with DPAPI, never shown in plain text. |
+| API key | empty | Model service access key; Windows encrypts it with DPAPI, while macOS uses the `TALENT_HUB_API_KEY` environment variable. |
 | Model name | empty | The model identifier to use, as defined by your model provider. |
 | Concurrency | 6 (1–12) | Number of candidates processed in parallel per batch. Higher is faster but is limited by the provider's rate limits; lower it when rate-limited. |
 | Request timeout (seconds) | 180 (30–600) | Timeout for a single model request; increase it when the model responds slowly. Criteria generation tries up to 3 times; each candidate evaluation allows up to 2 model transport attempts. |
-| Tesseract path | empty | Path to `tesseract.exe` for scanned PDFs or image resumes. Not needed for text PDF/DOCX/TXT/Markdown; install the `chi_sim` language pack for Chinese resumes. |
+| Tesseract path | empty | Tesseract executable path for scanned PDFs or image resumes. Not needed for text PDF/DOCX/TXT/Markdown; install the `chi_sim` language pack for Chinese resumes. |
 | Retain parsed text | on | Whether to keep the parsed resume text locally. Turn off to stop storing parsed text and reduce local data retention. |
-| Speech-to-text key | empty | Volcano Engine large-model speech recognition (audio-file fast version) API key, used for phone-call transcription; encrypted with DPAPI. |
+| Speech-to-text key | empty | Volcano Engine large-model speech recognition (audio-file fast version) API key; Windows encrypts it with DPAPI, while macOS uses the `TALENT_HUB_ASR_API_KEY` environment variable. |
 | Phone Q&A detail (verbatim transcript) | off | When enabled, phone summarization also produces a full Q&A transcript; off by default to greatly cut processing time. |
 
 ### Speech-to-text (Volcano Engine) setup
@@ -153,7 +163,7 @@ Phone-call transcription uses **Volcano Engine large-model speech recognition (a
 1. Open the [Volcano Engine Speech / Doubao voice console](https://console.volcengine.com/speech/app) and log in (register and complete real-name verification first if needed).
 2. Create an app and be sure to select **"Audio-file fast version / Large-model speech recognition fast version"** (resource `volc.bigasr.auc_turbo`); do not pick the standard or streaming variant, which cannot transcribe local files.
 3. In the console's "API key" page (new console), copy the **API key**.
-4. In the app's Settings, paste that key into "Speech-to-text key" and save.
+4. On Windows, paste that key into "Speech-to-text key" in Settings and save; on macOS, set `TALENT_HUB_ASR_API_KEY` before launch.
 
 > [!NOTE]
 > Transcription is billed by Volcano Engine by transcript duration; check the free allowance and resource packs in the console first. Transcripts and organized records stay on your machine and are never uploaded to the model service.
@@ -162,8 +172,11 @@ Phone-call transcription uses **Volcano Engine large-model speech recognition (a
 
 | Variable | Description |
 | --- | --- |
-| `TALENT_HUB_API_KEY` | Injects the model API key via environment variable; useful on non-Windows systems or wherever saving the key in Settings is inconvenient. A key saved in Settings takes precedence; this variable is used as a fallback. |
-| `TALENT_HUB_DATA_DIR` | Overrides the default data directory `%LOCALAPPDATA%\TalentHub`, which stores settings, task materials, parsed text, and result files. |
+| `TALENT_HUB_API_KEY` | Injects the model API key via environment variable. On Windows, a saved key takes precedence and this variable is a fallback; on macOS, use this variable for the model key. |
+| `TALENT_HUB_ASR_API_KEY` | Injects the Volcano Engine ASR API key via environment variable; macOS uses this variable for speech-to-text. |
+| `TALENT_HUB_FEISHU_SIGN_SECRET` | Injects the Feishu bot signature secret via environment variable; the Webhook URL can still be saved in Settings. |
+| `TALENT_HUB_DATA_DIR` | Overrides the default data directory (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`), which stores settings, task materials, parsed text, and result files. |
+| `TESSERACT_CMD` | Specifies the Tesseract executable path; if unset, the app tries `PATH` and platform-specific common locations. |
 
 ## Feishu push setup (optional)
 
@@ -192,10 +205,21 @@ When enabled, each resume-screening run pushes one business overview, while phon
 
 Portable and installer outputs go to `release\`; end users don't need Python. The build script generates the icon and version info, and performs health-check and startup smoke tests on the portable app. Building the installer requires Inno Setup 7 or 6.
 
+## macOS build
+
+macOS artifacts must be built on macOS. Install build dependencies explicitly before building:
+
+```bash
+python -m pip install -r requirements-build.txt
+bash scripts/build_macos.sh
+```
+
+The script creates `dist/TalentHub.app` and `release/<version>/macos/TalentHub-macOS-<version>.zip`, then runs a local startup smoke test. The macOS package is currently unsigned and not notarized; organization distribution should add Apple Developer ID signing and notarization.
+
 ## Data & security
 
-- App data is stored by default in `%LOCALAPPDATA%\TalentHub`, including settings, task materials, parsed text, and result files.
-- API keys, ASR keys, and Feishu signature secrets are encrypted with DPAPI and never returned in plain text.
+- App data is stored by default on the user's machine (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`), including settings, task materials, parsed text, and result files.
+- On Windows, API keys, ASR keys, and Feishu signature secrets are encrypted with DPAPI; on macOS, secrets are provided through environment variables. Plaintext secrets are never returned by the API.
 - The service listens only on the loopback address, and all API requests require a session token.
 - During screening and phone summarization, the job description, parsed resume text, and transcripts are sent to your configured model / ASR service; evaluate the provider's data handling and compliance before use.
 - Feishu push sends result summaries to Feishu servers via a Webhook; keep the Webhook URL private to prevent others from posting messages into the group.

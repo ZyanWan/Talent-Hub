@@ -16,7 +16,7 @@ python -X utf8 -m app.main
 
 ## OCR 配置
 
-文本型 PDF、DOCX、TXT 和 Markdown 无需 OCR。扫描 PDF 与图片简历需要安装 Tesseract，并在设置中填写 `tesseract.exe` 路径。中文简历应安装 `chi_sim` 语言包；应用会优先使用 `chi_sim+eng`。
+文本型 PDF、DOCX、TXT 和 Markdown 无需 OCR。扫描 PDF 与图片简历需要安装 Tesseract，并在设置中填写 Tesseract 程序路径。中文简历应安装 `chi_sim` 语言包；应用会优先使用 `chi_sim+eng`。macOS 可通过 `brew install tesseract tesseract-lang` 安装，常见路径为 `/opt/homebrew/bin/tesseract` 或 `/usr/local/bin/tesseract`。
 
 ## Windows 构建
 
@@ -24,18 +24,29 @@ python -X utf8 -m app.main
 
 ```powershell
 python -m pip install -r requirements-build.txt
-.\build_windows.ps1
+.\scripts\build_windows.ps1
 ```
 
-便携版输出到 `release\0.1.0\portable\TalentHub\`，安装包输出到 `release\0.1.0\TalentHub-Setup-0.1.0.exe`。最终用户不需要安装 Python；Tesseract 仅在处理扫描件或图片简历时需要。
+便携版和安装包输出到 `release\<version>\`。最终用户不需要安装 Python；Tesseract 仅在处理扫描件或图片简历时需要。
 
 构建脚本会生成应用图标和 Windows 版本信息，并对便携版执行健康检查与首页启动烟测。面向组织分发前应使用受信任的代码签名证书签署 EXE 和安装包，避免 Windows SmartScreen 将未知发布者标记为风险。
+
+## macOS 构建
+
+macOS 产物必须在 macOS 上构建。先显式安装构建依赖，再运行脚本：
+
+```bash
+python -m pip install -r requirements-build.txt
+bash scripts/build_macos.sh
+```
+
+脚本会生成 `dist/TalentHub.app` 和 `release/<version>/macos/TalentHub-macOS-<version>.zip`，并执行本地启动烟测。当前 macOS 包未签名、公证；组织分发前应补充 Apple Developer ID 签名与公证。
 
 发布目录会包含 `THIRD_PARTY_NOTICES.txt` 和 `THIRD_PARTY_LICENSES`，记录应用直接及传递依赖的许可证文件。PDF 处理采用 pypdf、pdfplumber 和 pypdfium2，不打包 PyMuPDF。
 
 ## 本机数据
 
-设置与任务默认保存在 `%LOCALAPPDATA%\TalentHub`。API Key 使用当前 Windows 用户的 DPAPI 加密，应用接口只监听回环地址并要求每次启动生成的本地会话令牌。
+设置与任务默认保存在用户本机（Windows：`%LOCALAPPDATA%\TalentHub`；macOS：`~/.local/share/TalentHub`）。Windows 上模型 API Key、ASR Key 与飞书签名密钥使用当前用户的 DPAPI 加密；macOS 上分别通过 `TALENT_HUB_API_KEY`、`TALENT_HUB_ASR_API_KEY`、`TALENT_HUB_FEISHU_SIGN_SECRET` 环境变量配置。应用接口只监听回环地址并要求每次启动生成的本地会话令牌。
 
 每个任务保留 JD、原始简历、筛选标准、解析清单、结构化评估结果和已校验的 Excel。若关闭应用时仍有任务运行，重新打开后会标记为中断，可重新发起筛选。
 
@@ -47,9 +58,9 @@ python -m pip install -r requirements-build.txt
 
 使用流程：在顶栏「新建」中选择「电话确认记录」，填写任务标题与岗位名称后创建任务；在任务页上传录音，支持 `.m4a`、`.wav`、`.mp3`、`.ogg`、`.opus` 格式，单个文件不超过 100MB，同一任务可上传多位候选人的录音；点击「开始整理」后，应用逐个录音完成转写与信息整理，对无法在转写原文中核对的内容自动标记为含糊；整理完成后逐人校对说明文字，每位候选人对应一份可下载的 Markdown 档案。设置中默认关闭「快筛详情（问答原文）」以缩短整理耗时，需要通篇问答原文时可在设置中开启。
 
-语音转写使用火山引擎 ASR 服务。在「设置」的模型配置中填写「语音转写密钥」（ASR API Key）；该密钥与模型 API Key 相同，使用当前 Windows 用户的 DPAPI 加密后保存在本机，设置页不显示明文。
+语音转写使用火山引擎 ASR 服务。Windows 上在「设置」的模型配置中填写「语音转写密钥」（ASR API Key），并使用当前用户的 DPAPI 加密后保存在本机；macOS 上通过 `TALENT_HUB_ASR_API_KEY` 环境变量配置。
 
-上传的录音会经网络发送至语音识别服务完成转写；转写文本与整理档案只保存在本机 `%LOCALAPPDATA%\TalentHub`，不会上传到模型服务。
+上传的录音会经网络发送至语音识别服务完成转写；转写文本与整理档案只保存在本机数据目录，不会上传到模型服务。
 
 电话确认任务同样按「最近」与「已归档」分类管理，支持归档、恢复与删除；删除会一并移除录音、转写文本与整理档案，且无法撤销。运行中的任务不能归档或删除。
 
@@ -72,7 +83,7 @@ python -m pip install -r requirements-build.txt
 2. 在「飞书推送」区块：
    - 勾选「任务完成后自动推送结果到飞书群」；
    - 粘贴 Webhook 地址；
-   - 若开启了「签名校验」，把签名密钥填入「飞书推送 · 签名密钥」（未开启则留空）；
+   - 若开启了「签名校验」，Windows 上把签名密钥填入「飞书推送 · 签名密钥」（未开启则留空）；macOS 上使用 `TALENT_HUB_FEISHU_SIGN_SECRET` 环境变量；
    - 点「测试飞书链接」，群里收到「Talent Hub 飞书推送测试成功」即表示配置正确；
    - 点「保存配置」。
 

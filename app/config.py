@@ -13,6 +13,8 @@ from pathlib import Path
 
 APP_DIR_NAME = "TalentHub"
 ENV_API_KEY = "TALENT_HUB_API_KEY"
+ENV_ASR_API_KEY = "TALENT_HUB_ASR_API_KEY"
+ENV_FEISHU_SIGN_SECRET = "TALENT_HUB_FEISHU_SIGN_SECRET"
 
 
 def app_data_dir() -> Path:
@@ -65,11 +67,19 @@ class AppSettings:
 
     @property
     def is_ready(self) -> bool:
-        return bool(self.base_url and self.model and (self.api_key or os.getenv(ENV_API_KEY)))
+        return bool(self.base_url and self.model and self.effective_api_key)
 
     @property
     def effective_api_key(self) -> str:
         return self.api_key or os.getenv(ENV_API_KEY, "")
+
+    @property
+    def effective_asr_api_key(self) -> str:
+        return self.asr_api_key or os.getenv(ENV_ASR_API_KEY, "")
+
+    @property
+    def effective_feishu_sign_secret(self) -> str:
+        return self.feishu_sign_secret or os.getenv(ENV_FEISHU_SIGN_SECRET, "")
 
     def public_dict(self) -> dict[str, object]:
         return {
@@ -79,12 +89,12 @@ class AppSettings:
             "max_parallel": self.max_parallel,
             "request_timeout": self.request_timeout,
             "ocr_executable": self.ocr_executable,
-            "asr_configured": bool(self.asr_api_key.strip()),
+            "asr_configured": bool(self.effective_asr_api_key),
             "retain_resume_text": self.retain_resume_text,
             "call_qa_records": self.call_qa_records,
             "feishu_push_enabled": self.feishu_push_enabled,
             "feishu_webhook_url": self.feishu_webhook_url,
-            "feishu_sign_configured": bool(self.feishu_sign_secret.strip()),
+            "feishu_sign_configured": bool(self.effective_feishu_sign_secret),
             "is_ready": self.is_ready,
         }
 
@@ -163,17 +173,17 @@ class SettingsStore:
         api_key = payload.pop("api_key", "")
         if api_key:
             if sys.platform != "win32":
-                raise RuntimeError(f"非 Windows 系统请通过环境变量 {ENV_API_KEY} 配置 API Key。")
+                raise RuntimeError(f"非 Windows 系统请通过环境变量 {ENV_API_KEY} 配置模型 API Key。")
             payload["api_key_dpapi"] = _protect_windows(api_key)
         asr_api_key = payload.pop("asr_api_key", "")
         if asr_api_key:
             if sys.platform != "win32":
-                raise RuntimeError("非 Windows 系统暂不支持保存语音转写（ASR）密钥。")
+                raise RuntimeError(f"非 Windows 系统请通过环境变量 {ENV_ASR_API_KEY} 配置语音转写（ASR）密钥。")
             payload["asr_api_key_dpapi"] = _protect_windows(asr_api_key)
         feishu_sign_secret = payload.pop("feishu_sign_secret", "")
         if feishu_sign_secret:
             if sys.platform != "win32":
-                raise RuntimeError("非 Windows 系统暂不支持保存飞书签名密钥。")
+                raise RuntimeError(f"非 Windows 系统请通过环境变量 {ENV_FEISHU_SIGN_SECRET} 配置飞书签名密钥。")
             payload["feishu_sign_secret_dpapi"] = _protect_windows(feishu_sign_secret)
         self.root.mkdir(parents=True, exist_ok=True)
         descriptor, temp_name = tempfile.mkstemp(prefix="settings-", suffix=".tmp", dir=self.root)

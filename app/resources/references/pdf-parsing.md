@@ -41,7 +41,7 @@
 
 ## Tesseract 配置
 
-- 设置项 `ocr_executable` 指定 `tesseract.exe` 路径；未配置时按 `TESSERACT_CMD` 环境变量 → `PATH` → 常见安装目录（`ProgramFiles`、`ProgramFiles(x86)`、`LOCALAPPDATA` 下的 `Tesseract-OCR`）自动探测。
+- 设置项 `ocr_executable` 指定 Tesseract 程序路径；未配置时按 `TESSERACT_CMD` 环境变量 → `PATH` → 平台常见安装目录（Windows 的 `ProgramFiles`、`ProgramFiles(x86)`、`LOCALAPPDATA` 下 `Tesseract-OCR`，macOS 的 `/opt/homebrew/bin/tesseract`、`/usr/local/bin/tesseract`）自动探测。
 - 语言包自动探测：同时存在 `chi_sim` 与 `eng` 时使用 `chi_sim+eng`，否则退回可用单语言；两者都缺失时报错。
 - 应用内置依赖 pypdfium2、pytesseract、Pillow；pypdf 与 pdfplumber 为可选依赖，缺失时自动跳过对应提取方式。
 

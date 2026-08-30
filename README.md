@@ -23,8 +23,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/OCR-Tesseract-B45F2A?style=flat" alt="OCR: Tesseract" />
   <img src="https://img.shields.io/badge/ASR-Volcano%20Engine-3370FF?style=flat" alt="ASR: Volcano Engine" />
-  <img src="https://img.shields.io/badge/Platform-Windows-0078D6?style=flat&amp;logo=windows&amp;logoColor=white" alt="Platform: Windows" />
-  <img src="https://img.shields.io/badge/Packaging-PyInstaller%20%2B%20Inno%20Setup-8AA0B5?style=flat" alt="Packaging: PyInstaller + Inno Setup" />
+  <img src="https://img.shields.io/badge/Platform-Windows%20%2B%20macOS-555555?style=flat" alt="Platform: Windows + macOS" />
+  <img src="https://img.shields.io/badge/Packaging-PyInstaller-8AA0B5?style=flat" alt="Packaging: PyInstaller" />
 </p>
 
 > [!IMPORTANT]
@@ -40,6 +40,7 @@
 - [应用设置（配置项说明）](#应用设置配置项说明)
 - [飞书推送配置（可选）](#飞书推送配置可选)
 - [Windows 构建](#windows-构建)
+- [macOS 构建](#macos-构建)
 - [数据与安全](#数据与安全)
 - [项目结构](#项目结构)
 - [使用边界](#使用边界)
@@ -103,15 +104,15 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 
 ## 技术特性
 
-- **本地优先**：数据默认保存在 `%LOCALAPPDATA%\TalentHub`，不写入源码目录。
-- **密钥安全**：模型、ASR 与飞书签名密钥使用当前 Windows 用户的 DPAPI 加密。
+- **本地优先**：数据默认保存在用户本机（Windows：`%LOCALAPPDATA%\TalentHub`；macOS：`~/.local/share/TalentHub`），不写入源码目录。
+- **密钥安全**：Windows 使用当前用户的 DPAPI 加密模型、ASR 与飞书签名密钥；macOS 通过环境变量提供敏感密钥。
 - **回环隔离**：服务仅监听 `127.0.0.1`，每次启动生成随机会话令牌。
 - **轻量前端**：原生 HTML/CSS/JS，无前端框架依赖。
 - **飞书通知可选**：使用飞书自定义机器人 Webhook 推送结果摘要，无新增第三方依赖。
 
 ## 快速开始（开发环境）
 
-**前置条件**：Windows、Python，以及可用的 OpenAI Chat Completions 兼容模型服务。
+**前置条件**：Windows 或 macOS、Python，以及可用的 OpenAI Chat Completions 兼容模型服务。
 
 1. 安装依赖：
 
@@ -121,14 +122,23 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 
 2. 启动应用：
 
+   Windows：
+
    ```powershell
    python -X utf8 -m app.main
    ```
 
-应用启动后会在默认浏览器打开。首次使用时，在设置中填写模型服务基础地址、API Key 与模型名称，并测试连接。
+   macOS：
+
+   ```bash
+   export TALENT_HUB_API_KEY="你的模型 API Key"
+   python -X utf8 -m app.main
+   ```
+
+应用启动后会在默认浏览器打开。首次使用时，Windows 在设置中填写模型服务基础地址、API Key 与模型名称，并测试连接；macOS 在启动前配置 `TALENT_HUB_API_KEY`，设置中只填写模型服务基础地址和模型名称等非敏感项。
 
 > [!NOTE]
-> 文本型 PDF、DOCX、TXT、Markdown 无需 OCR；处理扫描 PDF 或图片时需安装 Tesseract 并在设置中配置 `tesseract.exe` 路径（中文简历建议安装 `chi_sim` 语言包）。
+> 文本型 PDF、DOCX、TXT、Markdown 无需 OCR；处理扫描 PDF 或图片时需安装 Tesseract 并在设置中配置 Tesseract 程序路径（中文简历建议安装 `chi_sim` 语言包）。macOS 可通过 `brew install tesseract tesseract-lang` 安装。
 
 ## 应用设置（配置项说明）
 
@@ -137,13 +147,13 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 | 配置 | 默认值 / 范围 | 说明 |
 | --- | --- | --- |
 | 模型服务基础地址 | `https://api.openai.com/v1` | 兼容 `/chat/completions` 与 JSON 输出的 OpenAI 格式服务；需以 `/v1` 结尾。 |
-| API Key | 空 | 模型服务的访问密钥，DPAPI 加密保存在本机，界面不显示明文。 |
+| API Key | 空 | 模型服务的访问密钥；Windows 使用 DPAPI 加密保存，macOS 使用 `TALENT_HUB_API_KEY` 环境变量。 |
 | 模型名称 | 空 | 实际使用的模型标识，由模型服务商决定。 |
 | 并发数 | 6（1–12） | 每批同时处理的候选人数量。值越大越快，但受模型服务商限流影响；遇限流时请调低。 |
 | 请求超时（秒） | 180（30–600） | 单次模型请求的超时时间；模型响应较慢时可适当调大。筛选标准生成最多尝试 3 次，单份候选人评估的模型传输请求最多尝试 2 次。 |
-| Tesseract 路径 | 空 | 处理扫描 PDF 或图片简历时的 `tesseract.exe` 路径；文本型 PDF/DOCX/TXT/Markdown 无需配置，中文简历建议安装 `chi_sim` 语言包。 |
+| Tesseract 路径 | 空 | 处理扫描 PDF 或图片简历时的 Tesseract 程序路径；文本型 PDF/DOCX/TXT/Markdown 无需配置，中文简历建议安装 `chi_sim` 语言包。 |
 | 保留解析文本 | 开启 | 是否在本机保留解析后的简历文本；关闭后任务不再保存解析文本，以减小本机数据留存。 |
-| 语音转写密钥 | 空 | 火山引擎大模型语音识别（录音文件极速版）的 API Key，用于电话确认的录音转写；DPAPI 加密保存。 |
+| 语音转写密钥 | 空 | 火山引擎大模型语音识别（录音文件极速版）的 API Key；Windows 使用 DPAPI 加密保存，macOS 使用 `TALENT_HUB_ASR_API_KEY` 环境变量。 |
 | 电话快筛详情（问答原文） | 关闭 | 开启后电话整理会生成通篇问答原文；默认关闭以大幅缩短整理耗时。 |
 
 ### 语音转写（火山引擎）配置
@@ -153,7 +163,7 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 1. 打开[火山引擎语音 / 豆包语音控制台](https://console.volcengine.com/speech/app)并登录（未注册需先注册并完成实名认证）。
 2. 创建应用，并**务必勾选「录音文件极速版 / 大模型语音识别极速版」**（资源 `volc.bigasr.auc_turbo`）；不要误选标准版或实时流式识别，否则无法转写本地录音文件。
 3. 在控制台的「API Key」页面（新版控制台）复制 **API Key**。
-4. 在应用「设置」中把该 Key 填入「语音转写密钥」，保存即可。
+4. Windows 在应用「设置」中把该 Key 填入「语音转写密钥」并保存；macOS 在启动前设置 `TALENT_HUB_ASR_API_KEY`。
 
 > [!NOTE]
 > 语音转写由火山引擎按转写时长计费，建议先在控制台确认免费额度与资源包。转写文本与整理档案只保存在本机，不会上传到模型服务。
@@ -162,8 +172,11 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 
 | 环境变量 | 说明 |
 | --- | --- |
-| `TALENT_HUB_API_KEY` | 以环境变量方式注入模型 API Key；适用于非 Windows 系统或不便在设置中保存密钥的场景。设置中保存的 Key 优先，未保存时回退到该变量。 |
-| `TALENT_HUB_DATA_DIR` | 覆盖默认数据目录 `%LOCALAPPDATA%\TalentHub`，用于设置、任务材料、解析文本与结果文件的存储位置。 |
+| `TALENT_HUB_API_KEY` | 以环境变量方式注入模型 API Key；Windows 上设置中保存的 Key 优先，未保存时回退到该变量；macOS 使用该变量配置模型密钥。 |
+| `TALENT_HUB_ASR_API_KEY` | 以环境变量方式注入火山引擎 ASR API Key；macOS 使用该变量配置语音转写密钥。 |
+| `TALENT_HUB_FEISHU_SIGN_SECRET` | 以环境变量方式注入飞书机器人签名密钥；Webhook 地址仍可在设置中保存。 |
+| `TALENT_HUB_DATA_DIR` | 覆盖默认数据目录（Windows：`%LOCALAPPDATA%\TalentHub`；macOS：`~/.local/share/TalentHub`），用于设置、任务材料、解析文本与结果文件的存储位置。 |
+| `TESSERACT_CMD` | 指定 Tesseract 程序路径；未设置时应用会尝试从 `PATH` 和平台常见路径自动探测。 |
 
 ## 飞书推送配置（可选）
 
@@ -174,7 +187,7 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 3. 在应用「设置」弹窗的「飞书推送」区块：勾选「任务完成后自动推送结果到飞书群」，粘贴 Webhook 地址，点击「测试飞书链接」验证，最后保存。
 
 > [!TIP]
-> ① 未开启签名校验时，签名密钥留空即可；若在飞书中开启「签名校验」，请把生成的密钥填入「飞书推送 · 签名密钥」。② 请勿在机器人安全设置中勾选「自定义关键词」，否则不含关键词的消息会被飞书拦截。③ 简历消息只包含统计、候选人姓名、结论与一句话判定；电话消息包含应用内文本型整理记录，但会隐藏手机号、座机号和邮箱，不会附加转写原文、内部事实或引文。单条电话消息超限时会截断，并提示到 Talent Hub 查看完整记录。
+> ① 未开启签名校验时，签名密钥留空即可；若在飞书中开启「签名校验」，Windows 请把生成的密钥填入「飞书推送 · 签名密钥」，macOS 请在启动前设置 `TALENT_HUB_FEISHU_SIGN_SECRET`。② 请勿在机器人安全设置中勾选「自定义关键词」，否则不含关键词的消息会被飞书拦截。③ 简历消息只包含统计、候选人姓名、结论与一句话判定；电话消息包含应用内文本型整理记录，但会隐藏手机号、座机号和邮箱，不会附加转写原文、内部事实或引文。单条电话消息超限时会截断，并提示到 Talent Hub 查看完整记录。
 
 ## Windows 构建
 
@@ -192,10 +205,21 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 
 便携版与安装包输出到 `release\` 目录，最终用户无需安装 Python。构建脚本会生成图标与版本信息，并对便携版做健康检查与启动烟测。生成安装程序需 Inno Setup 7 或 6。
 
+## macOS 构建
+
+macOS 产物必须在 macOS 上构建。构建前请先显式安装构建依赖：
+
+```bash
+python -m pip install -r requirements-build.txt
+bash scripts/build_macos.sh
+```
+
+脚本会生成 `dist/TalentHub.app` 和 `release/<version>/macos/TalentHub-macOS-<version>.zip`，并执行本地启动烟测。当前 macOS 包未做代码签名和公证；组织分发前应补充 Apple Developer ID 签名与公证流程。
+
 ## 数据与安全
 
-- 应用数据默认保存在 `%LOCALAPPDATA%\TalentHub`，包括设置、任务材料、解析文本与结果文件。
-- API Key 与 ASR Key 使用 DPAPI 加密保存，接口不回显明文。
+- 应用数据默认保存在用户本机（Windows：`%LOCALAPPDATA%\TalentHub`；macOS：`~/.local/share/TalentHub`），包括设置、任务材料、解析文本与结果文件。
+- Windows 上 API Key、ASR Key 与飞书签名密钥使用 DPAPI 加密保存；macOS 上通过环境变量提供敏感密钥。接口不回显明文。
 - 服务仅监听本机回环地址，所有 API 请求均需携带会话令牌。
 - 筛选与电话整理时，岗位说明、解析后的简历文本及转写文本会发送至用户配置的模型 / ASR 服务；使用前应评估服务商的数据处理与合规性。
 - 飞书推送通过 Webhook 将结果摘要发送至飞书服务器；请妥善保管 Webhook 地址，避免泄露后被他人在群内发送消息。

@@ -505,7 +505,7 @@ class CallProcessor:
             settings = self.settings_store.load()
             if not settings.is_ready:
                 raise RuntimeError("模型配置不完整，请先完成配置并测试连接。")
-            if not settings.asr_api_key:
+            if not settings.effective_asr_api_key:
                 raise RuntimeError("请先在设置中配置语音转写密钥。")
             call = self.repository.update(
                 call_id, status="running", stage="准备处理", errors=[], **changes,
@@ -604,7 +604,7 @@ class CallProcessor:
             from .speech_to_text import render_transcript, transcribe_audio
 
             result = _run_cancellable(
-                lambda: transcribe_audio(audio_path, settings.asr_api_key),
+                lambda: transcribe_audio(audio_path, settings.effective_asr_api_key),
                 cancel_event,
             )
             text = render_transcript(result["utterances"])

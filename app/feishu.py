@@ -82,7 +82,7 @@ def send_message(
     limiter: _RateLimiter = _rate_limiter,
 ) -> None:
     payload = dict(body)
-    secret = settings.feishu_sign_secret.strip()
+    secret = settings.effective_feishu_sign_secret.strip()
     if secret:
         timestamp = int(time.time())
         payload["timestamp"] = str(timestamp)

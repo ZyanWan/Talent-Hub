@@ -101,9 +101,14 @@ def configure_tesseract(path: str) -> str:
                 root = os.getenv(env_name)
                 if root:
                     candidates.append(Path(root) / "Tesseract-OCR" / "tesseract.exe")
+        if sys.platform == "darwin":
+            candidates.extend([
+                Path("/opt/homebrew/bin/tesseract"),
+                Path("/usr/local/bin/tesseract"),
+            ])
     executable = next((candidate for candidate in candidates if candidate.is_file()), None)
     if executable is None:
-        raise RuntimeError("未检测到 Tesseract OCR，请安装后在设置中填写 tesseract.exe 路径。")
+        raise RuntimeError("未检测到 Tesseract OCR，请安装后在设置中填写 Tesseract 程序路径，或配置 TESSERACT_CMD 环境变量。")
     import pytesseract
 
     pytesseract.pytesseract.tesseract_cmd = str(executable)

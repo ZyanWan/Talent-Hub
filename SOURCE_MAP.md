@@ -15,7 +15,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 
 - HTTP 服务只监听 `127.0.0.1`。
 - 所有 `/api/` 请求必须携带当前进程生成的本地会话令牌。
-- 模型 API Key 和 ASR API Key 使用当前 Windows 用户的 DPAPI 加密。
+- Windows 上模型 API Key、ASR API Key 和飞书签名密钥使用当前用户的 DPAPI 加密；macOS 上通过环境变量提供敏感密钥。
 - 简历、录音、解析文本和产物保存在本机数据目录，不写入源码目录。
 - 模型输出不是直接真相；简历与电话链路均有原文证据校验和人工复核边界。
 - Excel 是正式交付产物，必须符合固定五表契约并通过安全校验。
@@ -25,7 +25,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | 模块 | 核心职责 | 主要影响对象 |
 | --- | --- | --- |
 | `app/main.py` | 应用装配、路由、令牌中间件、上传限制、下载和预览、服务启动 | 前端全部 API、仓储、筛选引擎、电话处理器 |
-| `app/config.py` | 数据目录、配置模型、DPAPI、配置迁移和公开配置 | 模型调用、ASR、飞书推送、前端设置、发布运行环境 |
+| `app/config.py` | 数据目录、配置模型、Windows DPAPI、macOS 环境变量 fallback、配置迁移和公开配置 | 模型调用、ASR、飞书推送、前端设置、发布运行环境 |
 | `app/feishu.py` | 飞书 Webhook 推送：签名、统一脱敏、筛选/电话消息构建、20KB 大小保护、有限重试、频控及带成功状态的 `push_with_status` | `main.py`（feishu-test）、`pipeline.py`、`phone_screening.py`、设置配置 |
 | `app/models.py` | 筛选（含硬性门槛判定）、证据、电话摘要（动态章节/软性观察/快筛问答）的 Pydantic 契约 | Prompt 输出、持久化 JSON、Excel、前端字段 |
 | `app/repository.py` | `JsonStore` 通用 JSON 仓储、岗位任务 JSON、文件目录、归档、删除、路径和文件名安全 | `main.py`、`pipeline.py`、`call_repository.py`、任务恢复 |
@@ -49,8 +49,11 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
 | `app/static/js/views/` | screening（筛选四视图）、phone（电话确认）、history（历史对话框，Job+Call 共用） | 后端路由、JSON 字段、状态枚举 |
 | `app/static/styles.css` | 布局、响应式、状态样式 | HTML class、JS 动态 class |
 | `launcher.py` | PyInstaller 薄启动入口 | `app.main.main`、打包配置 |
-| `scripts/build_windows.ps1` | PyInstaller、图标生成、许可证、烟测、安装器编排（可跳过烟测/安装器） | 版本、发布目录、packaging 文件 |
+| `scripts/build_windows.ps1` | Windows PyInstaller、图标生成、许可证、烟测、安装器编排（可跳过烟测/安装器） | 版本、发布目录、packaging 文件 |
 | `scripts/verify_windows_release.ps1` | 发布 EXE 的启动、临时数据目录和首页烟测 | `main.py` 参数、`/health`、首页结构 |
+| `packaging/talent_hub_macos.spec` | macOS PyInstaller `.app` bundle 配置 | macOS 发布产物、资源收集、启动入口 |
+| `scripts/build_macos.sh` | macOS PyInstaller 构建、许可证、烟测和版本化 zip 输出 | 版本、发布目录、macOS packaging 文件 |
+| `scripts/verify_macos_release.sh` | macOS 可执行文件启动、临时数据目录和首页烟测 | `main.py` 参数、`/health`、首页结构 |
 | `debug/` | 非生产链路的调试和实验辅助目录 | Prompt 对比、问题复现、维护记录 |
 
 ### 2.1 前端模块化约定
@@ -97,7 +100,7 @@ Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端使�
   │ X-App-Token + JSON/二进制
   ▼
 FastAPI app/main.py
-  ├─ SettingsStore ─────────────── app/config.py ── DPAPI / settings.json
+  ├─ SettingsStore ─────────────── app/config.py ── Windows DPAPI / macOS env fallback / settings.json
   ├─ JobRepository ─────────────── app/repository.py ── jobs/<job_id>/
   ├─ EvaluationEngine ──────────── app/pipeline.py
   │    ├─ extract_resume_text.py
@@ -152,7 +155,8 @@ launcher.py 或 python -m app.main
      └─ feishu_sign_secret：留空回退已存值，clear_feishu_sign 置空
   → SettingsStore.save()
      ├─ 数值归一化
-     ├─ API Key / ASR Key / 飞书签名密钥使用 DPAPI 加密
+     ├─ Windows：API Key / ASR Key / 飞书签名密钥使用 DPAPI 加密
+     ├─ macOS：敏感密钥不写入 settings.json，通过环境变量提供
      └─ 临时文件 + os.replace 写 settings.json
   → public_settings()
   → 前端只得到 is_ready / asr_configured / feishu_push_enabled / feishu_webhook_url / feishu_sign_configured 等公开状态
@@ -163,8 +167,9 @@ launcher.py 或 python -m app.main
 ```text
 EvaluationEngine / CallProcessor / settings test / feishu-test / compare
   → SettingsStore.load()
-  → DPAPI 解密或读取 TALENT_HUB_API_KEY
-  → OpenAICompatibleClient(base_url, api_key, model, timeout)
+  → Windows：DPAPI 解密，未保存模型 Key 时回退 TALENT_HUB_API_KEY
+  → macOS：读取 TALENT_HUB_API_KEY / TALENT_HUB_ASR_API_KEY / TALENT_HUB_FEISHU_SIGN_SECRET
+  → OpenAICompatibleClient(base_url, effective_api_key, model, timeout)
 ```
 
 飞书推送时（`push_with_status`）：
@@ -718,7 +723,7 @@ FastAPI 异步请求
 | --- | --- | --- |
 | 仅监听回环地址 | `main.py` Uvicorn 配置 | 启动、烟测、产品约束 |
 | API 本地令牌 | `main.py` 中间件、HTML meta、`js/core/api.js api()` | 首页注入、所有 API 验证 |
-| DPAPI 密钥保护 | `config.py` | 设置 API、迁移、公开设置、飞书签名密钥、验证 |
+| 密钥保护 / 环境变量 fallback | `config.py` | 设置 API、迁移、公开设置、模型/ASR/飞书签名密钥、验证 |
 | 文件名清洗 | `repository.py` | 上传、下载、预览、结果 `source_file` |
 | 路径边界 | 仓储、`artifact_preview.py` | 下载、预览、删除、路径逃逸验证 |
 | 上传大小限制 | `main.py`、`speech_to_text.py` | 前端提示、错误码、验证 |
@@ -832,6 +837,6 @@ FastAPI 异步请求
 - 修改 API 字段、结论枚举或工作簿契约；
 - 修改并发、取消、恢复或检查点机制；
 - 修改密钥、文件、证据或 Excel 安全边界；
-- 修改 Windows 构建、安装或清理流程。
+- 修改 Windows 或 macOS 构建、安装或清理流程。
 
 本文应描述当前代码事实，不记录临时调试过程。具体故障证据放入 `debug/`，修复完成后只将稳定的架构约束回写到本文。
