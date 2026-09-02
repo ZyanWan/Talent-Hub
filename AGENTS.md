@@ -1,6 +1,6 @@
 # 0. Project Note
 
-`references/skill_refer/resume-evaluator/` is an **obsolete early-stage reference** and has no relation to the current codebase. Do not read, reference, or maintain this directory — doing so pollutes the agent context. The only authoritative reference documents for this app live in `app/resources/references/`; the code under `app/` is the source of truth.
+事实来源：`app/`（后端）+ `frontend/`（前端）。项目结构、参考文档与运行拓扑等细节见 `SOURCE_MAP.md`。
 
 # 1. Think Before Coding
 
@@ -67,3 +67,13 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - 新增用户可操作的配置项 → 在 README 与 APP_GUIDE 中提供逐步配置指引，包含界面入口的具体描述（面向非技术用户时，说明入口在界面的哪个位置，不假设用户熟悉平台）。
 - 文档必须基于代码实现描述事实，不记录临时调试过程（故障证据放 `debug/`，稳定约束回写文档）。
 - 收尾前检查清单：README（中英）是否提到新功能、APP_GUIDE 是否可让新用户独立完成配置、SOURCE_MAP 是否反映真实数据流与影响面。
+
+# 6. 生产代码卫生（Code Hygiene）
+
+**注释与文档只描述当前代码事实，使用现在时；不记录历史变迁，不引用已删除的实现。**
+
+- 禁止过去时与历史描述：注释/文档中不得出现「之前 / 原来 / 旧版 / 原版 / 由原…变来 / 重构前 / 迁移前 / 未复刻 / 已删除」等措辞。
+- 禁止引用已不存在的文件或符号：一律直接描述当前行为，不引用历史实现。
+- 迭代修改直接改原文件，不留 v1/v2 双份命名（如 `*-v2.test.ts`）；旧版本不再使用时删除，不保留"第二版"。
+- 禁止把对话指令、用户要求、评审意见的措辞写进生产代码或生产文档；约束只沉淀在 `AGENTS.md` / `README` / `SOURCE_MAP` 等约定性文档中。
+- 文档（README / SOURCE_MAP / APP_GUIDE）只描述当前事实，不记录过程与历史（临时调试证据放 `debug/`）。

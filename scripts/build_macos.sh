@@ -32,6 +32,8 @@ if [[ -e "$ZIP_PATH" ]]; then
   exit 1
 fi
 
+(cd "$ROOT/frontend" && npm ci && npm run build)
+
 python -X utf8 -m PyInstaller --clean --noconfirm packaging/talent_hub_macos.spec
 
 APP_PATH="dist/TalentHub.app"

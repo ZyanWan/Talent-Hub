@@ -1,5 +1,5 @@
 <p align="center" style="margin-bottom: 6px;">
-  <img src="references/ico_refer/图标3-极简主义.png" alt="Talent Hub logo" width="120" />
+  <img src="assets/app-icon-logo.png" alt="Talent Hub logo" width="120" />
 </p>
 
 <h1 align="center" style="margin-top: 0;">Talent Hub</h1>
@@ -15,7 +15,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Language-Python-3776AB?style=flat&amp;logo=python&amp;logoColor=white" alt="Language: Python" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=flat&amp;logo=fastapi&amp;logoColor=white" alt="Backend: FastAPI" />
-  <img src="https://img.shields.io/badge/Frontend-Vanilla%20JS-F7DF1E?style=flat&amp;logo=javascript&amp;logoColor=black" alt="Frontend: Vanilla JS" />
+  <img src="https://img.shields.io/badge/Frontend-React%20%2B%20TS-61DAFB?style=flat&amp;logo=react&amp;logoColor=black" alt="Frontend: React + TS" />
   <img src="https://img.shields.io/badge/Excel-openpyxl-217346?style=flat" alt="Excel: openpyxl" />
   <img src="https://img.shields.io/badge/PDF-pdfplumber-7B5BF2?style=flat" alt="PDF: pdfplumber" />
 </p>
@@ -107,7 +107,7 @@ Currently supported modules — more will follow:
 - **Local-first**: data is stored on the user's machine (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`), never in the source tree.
 - **Key security**: Windows encrypts model, ASR, and Feishu signature keys with the current user's DPAPI; macOS uses environment variables for secrets.
 - **Loopback isolation**: the service listens on `127.0.0.1` only and generates a per-session token at startup.
-- **Lightweight frontend**: vanilla HTML/CSS/JS with no frontend framework.
+- **Frontend**: React + TypeScript frontend (Vite build), served by FastAPI.
 - **Optional Feishu notifications**: pushes result summaries via a Feishu custom bot Webhook, with no new third-party dependency.
 
 ## Quick start (development)
@@ -120,7 +120,25 @@ Currently supported modules — more will follow:
    python -m pip install -r requirements.txt
    ```
 
-2. Start the app:
+2. Build the frontend (the backend serves the `frontend/dist` build output):
+
+   Windows:
+
+   ```powershell
+   cd frontend
+   npm ci
+   npm run build
+   ```
+
+   macOS:
+
+   ```bash
+   cd frontend && npm ci && npm run build
+   ```
+
+   > Windows shortcut: double-click `start-app.bat` in the project root. It builds the frontend (step 2) and starts the app (step 3); while developing, frontend changes are rebuilt automatically, so a page refresh shows the latest code.
+
+3. Start the app:
 
    Windows:
 
@@ -166,7 +184,7 @@ Phone-call transcription uses **Volcano Engine large-model speech recognition (a
 4. On Windows, paste that key into "Speech-to-text key" in Settings and save; on macOS, set `TALENT_HUB_ASR_API_KEY` before launch.
 
 > [!NOTE]
-> Transcription is billed by Volcano Engine by transcript duration; check the free allowance and resource packs in the console first. Transcripts and organized records stay on your machine and are never uploaded to the model service.
+> Transcription is billed by Volcano Engine by transcript duration; check the free allowance and resource packs in the console first. Audio files are sent to Volcano Engine ASR for transcription. The transcript is sent to the configured model service to generate the organized call record. Transcripts and organized records are saved in the local data directory.
 
 ### Environment variables (optional)
 
@@ -229,10 +247,11 @@ The script creates `dist/TalentHub.app` and `release/<version>/macos/TalentHub-m
 
 | Directory | Description |
 | --- | --- |
-| `app/` | FastAPI service, screening & phone pipelines, model client, runtime tools, and vanilla frontend |
+| `app/` | FastAPI service, screening & phone pipelines, model client, runtime tools |
+| `frontend/` | React + TypeScript frontend project (Vite build) |
 | `packaging/` | PyInstaller and Inno Setup packaging config |
 | `scripts/` | Build and release verification scripts |
-| `references/` | Skill and icon reference materials |
+| `docs/references/` | External background reference files (not part of the app) |
 | `assets/` | Application icon assets |
 
 ## Limitations

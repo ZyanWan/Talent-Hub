@@ -43,7 +43,7 @@ for _ in {1..100}; do
   HEALTH="$(/usr/bin/curl -fsS "http://127.0.0.1:$PORT/health" 2>/dev/null || true)"
   if [[ "$HEALTH" == *'"app":"talent-hub"'* && "$HEALTH" == *'"status":"ok"'* ]]; then
     PAGE="$(/usr/bin/curl -fsS "http://127.0.0.1:$PORT/" 2>/dev/null || true)"
-    if [[ "$PAGE" == *'class="app-shell"'* ]]; then
+    if [[ "$PAGE" == *'<div id="root">'* ]]; then
       echo "macOS release smoke test passed: $EXECUTABLE"
       exit 0
     fi

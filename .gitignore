@@ -19,6 +19,11 @@ env/
 # Node tooling (user guide generation)
 node_modules/
 
+# Frontend test artifacts (Playwright / Vitest)
+test-results/
+playwright-report/
+frontend/coverage/
+
 # Generated build and release output
 build/
 dist/

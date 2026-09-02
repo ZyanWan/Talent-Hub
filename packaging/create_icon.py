@@ -6,9 +6,9 @@ from PIL import Image, ImageChops, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "references" / "ico_refer" / "图标3-极简主义.png"
+# 应用图标源文件
+SOURCE = ROOT / "assets" / "app-icon-logo.png"
 OUTPUT = ROOT / "assets" / "app-icon.ico"
-WEB_OUTPUT = ROOT / "app" / "static" / "app-icon.png"
 ICON_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 MASTER_SIZE = 1024
 FOREGROUND_PADDING_RATIO = 0.08
@@ -18,10 +18,10 @@ CORNER_RADIUS_RATIO = 0.22
 def _foreground_bounds(image: Image.Image) -> tuple[int, int, int, int]:
     red, green, blue = image.convert("RGB").split()
     blue_over_red = ImageChops.subtract(blue, red).point(
-        lambda value: 255 if value >= 18 else 0
+        lambda value: 255 if value >= 18 else 0 # type: ignore
     )
     blue_over_green = ImageChops.subtract(blue, green).point(
-        lambda value: 255 if value >= 5 else 0
+        lambda value: 255 if value >= 5 else 0 # type: ignore
     )
     bounds = ImageChops.multiply(blue_over_red, blue_over_green).getbbox()
     if bounds is None:
@@ -58,11 +58,8 @@ def build_icon() -> Path:
     with Image.open(SOURCE) as source:
         image = _prepare_icon(source)
 
-    web_image = image.resize((256, 256), Image.Resampling.LANCZOS)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    WEB_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     image.save(OUTPUT, format="ICO", sizes=ICON_SIZES)
-    web_image.save(WEB_OUTPUT, format="PNG", optimize=True)
     return OUTPUT
 
 

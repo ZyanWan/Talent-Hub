@@ -194,7 +194,7 @@ def _render_pdf_preview(raw: bytes, scale: float) -> tuple[int, list[dict]]:
         for index in range(page_count):
             page = document[index]
             try:
-                bitmap = page.render(scale=scale)
+                bitmap = page.render(scale=scale) # type: ignore
                 try:
                     image = bitmap.to_pil()
                     try:
@@ -302,7 +302,8 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
     call_repository = CallRepository(root)
     call_processor = CallProcessor(call_repository, settings_store)
     token = app_token or secrets.token_urlsafe(32)
-    static_dir = ROOT / "app" / "static"
+    # React 前端构建产物目录（Vite 构建，需先 npm run build）
+    static_dir = ROOT / "frontend" / "dist"
 
     app = FastAPI(title="招聘工作台", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings_store = settings_store
@@ -711,7 +712,7 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
             summary.fields = [CallField.model_validate(field) for field in payload.fields]
         changes = {"summary": summary.model_dump(mode="json")}
         if candidate_name:
-            changes["candidate_name"] = candidate_name
+            changes["candidate_name"] = candidate_name # type: ignore
         updated = call_repository.update_item(call_id, item_id, **changes)
         item = next(
             (entry for entry in updated["items"] if entry.get("id") == item_id), item,
@@ -953,7 +954,7 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
         client.abort()
         return {"ok": True}
 
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
     return app
 
 

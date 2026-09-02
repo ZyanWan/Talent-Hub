@@ -368,12 +368,15 @@ def evaluation_user_prompt(criteria: ScreeningCriteria, resume_text: str, source
    - 编造：简历中完全不存在的经历或事实，绝对禁止。
    - 简历未逐字写明 ≠ 未体现：不要因为候选人没写岗位关键词就降低判断。
 2. A 必须有本质能力（需求洞察、方案设计、推动落地、结果负责）的明确证据，并满足全部 A 条件；
-   证据可以是原文直接描述，也可以由完整经历合理推断。工具、证书、结果数字等软性缺口只写入
-   备注，不因此降级。
+   证据可以是原文直接描述，也可以由完整经历合理推断。判定 A 时四个核心维度（对象、场景、
+   核心动作、负责深度）都必须有“匹配”证据：未逐字写明但可由完整经历高概率推断的维度应判
+   “匹配”，在 summary 写明推断依据（具体对象、时间线、职责线索），不得因简历没写关键词就判
+   “未体现”。工具、证书、结果数字等软性缺口只写入备注，不因此降级。
 3. B 类唯一准入标准：存在关键事实二义——A 与 C 两种解读都成立，且电话答案会直接改变推进决定。
-   仅因简历写法简略、信息未写明、软性缺口或个别维度未体现，不构成 B：能从整体经历高概率判断的
-   直接判 A 或 C。核心四维度（对象、场景、核心动作、负责深度）全部无任何支撑且全文无具体名词
-   或数字的，属于空洞描述，直接判 C。B 类必须生成至少一个会改变结论的电话问题，按 priority
+   简历写法简略、信息未写明、软性缺口不构成 B；核心维度可由整体经历高概率推断时应判“匹配”
+   （见规则 2），不得判“未体现”后送入 B。某核心维度既无原文证据、也无法高概率推断时才是真实
+   缺口：其余证据充分则 A 不成立、判 B 并电话确认该维度；核心四维度全部无任何支撑且全文无具体
+   名词或数字的，属于空洞描述，直接判 C。B 类必须生成至少一个会改变结论的电话问题，按 priority
    分层：高=必须电话确认的关键二义点；中=可用邮件/问卷核实的次要信息；低=备选池，不要求立即处理。
 4. 只有对象/场景/方向存在明确否定证据（对象完全不同、JD 明确禁止的行业、方向明显不符、
    明显 overqualified 且 JD 未接受）或空洞描述才直接 C；“没写”与“明确不符”是两回事：
@@ -408,14 +411,18 @@ def normalize_for_match(value: str) -> str:
     return re.sub(r"\s+", "", value).casefold()
 
 
-def _has_text_anchor(text: str, normalized_resume: str, min_chars: int = 4) -> bool:
+def _has_text_anchor(
+    text: str, normalized_resume: str, min_chars: int = 4, min_bigrams: int = 4
+) -> bool:
     """summary/note 是否存在与简历原文的事实关联（事实锚点）。
 
     用于允许基于简历上下文的合理推断、同时拦截完全编造。满足任一即视为有锚点：
-    1. 文本含 ≥4 字符且可连续命中原文的片段；
+    1. 文本含连续不少于 min_chars 个字符且可命中原文的片段（默认 4）；
     2. 文本含 4 位以上数字且该数字在原文中出现（时间线锚点，如"2016"）；
-    3. 文本与原文共享 ≥4 个含汉字的二元组（容忍转述式摘要，如"消费电子"）。
+    3. 文本与原文共享不少于 min_bigrams 个含汉字的二元组（默认 4，容忍转述式摘要，如"消费电子"）。
     完全编造（与原文几乎零重叠）不满足以上任何一条，会被守卫降级。
+    min_bigrams 控制转述容忍度：值越高，仅凭简历通用词转述、无具体名词的文本越难通过锚点。
+    证据守卫对维度判定使用较高值；硬性门槛注记保留默认值（其推断以教育时间线等常规路径为主）。
     """
     if not text:
         return False
@@ -426,7 +433,7 @@ def _has_text_anchor(text: str, normalized_resume: str, min_chars: int = 4) -> b
     segments = re.split(r"[\s,，。;；、:：/\\()（）\[\]【】\"'“”‘’—\u3000\-~]+", normalized)
     if any(len(seg) >= min_chars and seg in normalized_resume for seg in segments):
         return True
-    return _shared_cjk_bigrams(normalized, normalized_resume) >= 4
+    return _shared_cjk_bigrams(normalized, normalized_resume) >= min_bigrams
 
 
 def _shared_cjk_bigrams(text: str, normalized_resume: str) -> int:
@@ -459,7 +466,10 @@ def apply_evidence_guard(evaluation: CandidateEvaluation, resume_text: str) -> C
             continue
         quote = dimension.quote.strip()
         quote_valid = bool(quote) and normalize_for_match(quote) in normalized_resume
-        anchored = quote_valid or _has_text_anchor(dimension.summary, normalized_resume)
+        # 维度判定收紧转述容忍度：仅凭简历通用词转述、无具体名词的摘要不能充当匹配/不匹配的支撑
+        anchored = quote_valid or _has_text_anchor(
+            dimension.summary, normalized_resume, min_bigrams=6
+        )
         if not anchored:
             warnings.append(f"{name} 标记为{status}但引文与摘要均无原文事实支撑")
             dimension.status = "待确认"
@@ -589,28 +599,30 @@ def apply_hard_gate_guard(
             evaluation.blockers.append("存在硬性条件待确认：电话确认后可能改变结论")
             evaluation.next_action = "电话确认硬性条件后再定"
             warnings.append("硬性条件存在 unknown，A 类降为 B 类")
-        existing_focuses = [q.focus for q in evaluation.phone_questions]
-        first = unknown_rules[0]
-        marker = f"硬性条件核实-{first.id}"
-        if not any(marker in focus for focus in existing_focuses):
-            evaluation.phone_questions.append(PhoneQuestion(
-                priority="高",
-                focus=marker,
-                question=f"请说明「{first.rule}」的具体情况（事实与证据）。",
-                current_evidence="简历未写明",
-                impact="B→A或B→C",
-            ))
-        if len(unknown_rules) > 1:
-            marker = "硬性条件核实-其他"
+        if evaluation.conclusion == "B电话确认":
+            # C 类（模型判 C 或已改判 C）不进入电话确认流程，不生成核实问题
+            existing_focuses = [q.focus for q in evaluation.phone_questions]
+            first = unknown_rules[0]
+            marker = f"硬性条件核实-{first.id}"
             if not any(marker in focus for focus in existing_focuses):
-                others = "；".join(f"「{v.rule}」" for v in unknown_rules[1:])
                 evaluation.phone_questions.append(PhoneQuestion(
                     priority="高",
                     focus=marker,
-                    question=f"请同时说明以下条件的实际情况：{others}。",
+                    question=f"请说明「{first.rule}」的具体情况（事实与证据）。",
                     current_evidence="简历未写明",
                     impact="B→A或B→C",
                 ))
+            if len(unknown_rules) > 1:
+                marker = "硬性条件核实-其他"
+                if not any(marker in focus for focus in existing_focuses):
+                    others = "；".join(f"「{v.rule}」" for v in unknown_rules[1:])
+                    evaluation.phone_questions.append(PhoneQuestion(
+                        priority="高",
+                        focus=marker,
+                        question=f"请同时说明以下条件的实际情况：{others}。",
+                        current_evidence="简历未写明",
+                        impact="B→A或B→C",
+                    ))
 
     evaluation.guard_warnings.extend(warnings)
     return evaluation

@@ -1,4 +1,0 @@
-interface:
-  display_name: "resume-evaluator-zh"
-  short_description: "按 JD 批量评估候选人简历，输出匹配程度 A/B/C 分类及筛选表，适用于大批量评估候选人的招聘场景。"
-  default_prompt: "使用 $resume-evaluator 根据 JD 批量评估候选人简历，输出匹配程度 A/B/C 分类及筛选表。"

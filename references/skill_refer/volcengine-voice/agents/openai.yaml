@@ -1,4 +1,0 @@
-interface:
-  display_name: "volcengine-voice-zh"
-  short_description: "火山引擎语音服务：音频转文字（含后处理校准）和文字转音频（多音色）。"
-  default_prompt: "使用 $volcengine-voice 执行音频转录（ASR）并进行后处理校准，或执行文字转语音（TTS）合成。ASR 需提供音频文件路径和输出偏好；TTS 需提供文本内容和音频参数。支持会议转录、访谈记录、语音合成和配音任务。"

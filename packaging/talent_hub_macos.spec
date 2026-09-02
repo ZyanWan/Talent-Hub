@@ -15,7 +15,7 @@ hiddenimports = [
 ]
 
 datas = [
-    (str(ROOT / "app" / "static"), "app/static"),
+    (str(ROOT / "frontend" / "dist"), "frontend/dist"),
     (str(ROOT / "app" / "resources"), "app/resources"),
 ]
 

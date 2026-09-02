@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [string]$Executable
 )
@@ -46,7 +46,7 @@ try {
     }
 
     $Page = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/" -TimeoutSec 5
-    if ($Page.StatusCode -ne 200 -or $Page.Content -notmatch 'class="app-shell"') {
+    if ($Page.StatusCode -ne 200 -or $Page.Content -notmatch '<div id="root">') {
         throw 'App home page smoke test failed.'
     }
     Write-Host "Release smoke test passed: $Executable"

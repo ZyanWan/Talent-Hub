@@ -1,4 +1,4 @@
-﻿param(
+param(
     [switch]$SkipInstaller,
     [switch]$SkipSmoke
 )
@@ -45,6 +45,19 @@ if ($LASTEXITCODE -ne 0) {
 
 python -X utf8 packaging\create_icon.py
 if ($LASTEXITCODE -ne 0) { throw 'App icon generation failed.' }
+
+$FrontendDir = Join-Path $Root 'frontend'
+Push-Location $FrontendDir
+try {
+    if (-not (Test-Path -LiteralPath (Join-Path $FrontendDir 'node_modules'))) {
+        npm ci
+        if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
+    }
+    npm run build
+    if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
+} finally {
+    Pop-Location
+}
 
 python -X utf8 -m PyInstaller --distpath $DistRoot --workpath $WorkRoot packaging\talent_hub.spec
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed.' }

@@ -1,5 +1,5 @@
 <p align="center" style="margin-bottom: 6px;">
-  <img src="references/ico_refer/图标3-极简主义.png" alt="Talent Hub 图标" width="120" />
+  <img src="assets/app-icon-logo.png" alt="Talent Hub 图标" width="120" />
 </p>
 
 <h1 align="center" style="margin-top: 0;">Talent Hub</h1>
@@ -15,7 +15,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Language-Python-3776AB?style=flat&amp;logo=python&amp;logoColor=white" alt="Language: Python" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=flat&amp;logo=fastapi&amp;logoColor=white" alt="Backend: FastAPI" />
-  <img src="https://img.shields.io/badge/Frontend-Vanilla%20JS-F7DF1E?style=flat&amp;logo=javascript&amp;logoColor=black" alt="Frontend: Vanilla JS" />
+  <img src="https://img.shields.io/badge/Frontend-React%20%2B%20TS-61DAFB?style=flat&amp;logo=react&amp;logoColor=black" alt="Frontend: React + TS" />
   <img src="https://img.shields.io/badge/Excel-openpyxl-217346?style=flat" alt="Excel: openpyxl" />
   <img src="https://img.shields.io/badge/PDF-pdfplumber-7B5BF2?style=flat" alt="PDF: pdfplumber" />
 </p>
@@ -107,7 +107,7 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 - **本地优先**：数据默认保存在用户本机（Windows：`%LOCALAPPDATA%\TalentHub`；macOS：`~/.local/share/TalentHub`），不写入源码目录。
 - **密钥安全**：Windows 使用当前用户的 DPAPI 加密模型、ASR 与飞书签名密钥；macOS 通过环境变量提供敏感密钥。
 - **回环隔离**：服务仅监听 `127.0.0.1`，每次启动生成随机会话令牌。
-- **轻量前端**：原生 HTML/CSS/JS，无前端框架依赖。
+- **前端**：React + TypeScript（Vite 构建），由 FastAPI 托管构建产物。
 - **飞书通知可选**：使用飞书自定义机器人 Webhook 推送结果摘要，无新增第三方依赖。
 
 ## 快速开始（开发环境）
@@ -120,7 +120,25 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
    python -m pip install -r requirements.txt
    ```
 
-2. 启动应用：
+2. 构建前端（后端直接托管 `frontend/dist` 构建产物）：
+
+   Windows：
+
+   ```powershell
+   cd frontend
+   npm ci
+   npm run build
+   ```
+
+   macOS：
+
+   ```bash
+   cd frontend && npm ci && npm run build
+   ```
+
+   > Windows 快捷方式：直接双击根目录 `start-app.bat`，自动完成前端构建（第 2 步）与启动（第 3 步）；开发时前端代码改动会自动重新构建，刷新页面即生效。
+
+3. 启动应用：
 
    Windows：
 
@@ -166,7 +184,7 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 4. Windows 在应用「设置」中把该 Key 填入「语音转写密钥」并保存；macOS 在启动前设置 `TALENT_HUB_ASR_API_KEY`。
 
 > [!NOTE]
-> 语音转写由火山引擎按转写时长计费，建议先在控制台确认免费额度与资源包。转写文本与整理档案只保存在本机，不会上传到模型服务。
+> 语音转写由火山引擎按转写时长计费，建议先在控制台确认免费额度与资源包。录音会发送至火山引擎 ASR 服务进行转写；转写文本会发送至用户配置的模型服务用于生成电话整理结果。转写文本与整理档案会保存在本机数据目录。
 
 ### 环境变量（可选）
 
@@ -229,10 +247,11 @@ bash scripts/build_macos.sh
 
 | 目录 | 说明 |
 | --- | --- |
-| `app/` | FastAPI 服务、筛选与电话流程、模型客户端、运行时工具与原生前端 |
+| `app/` | FastAPI 服务、筛选与电话流程、模型客户端、运行时工具 |
+| `frontend/` | React + TypeScript 前端工程（Vite 构建） |
 | `packaging/` | PyInstaller 与 Inno Setup 打包配置 |
 | `scripts/` | 构建与发布验证脚本 |
-| `references/` | 技能与图标参考资料 |
+| `docs/references/` | 外部背景参考文件（不参与运行） |
 | `assets/` | 应用图标资源 |
 
 ## 使用边界
