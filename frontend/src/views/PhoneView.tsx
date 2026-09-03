@@ -5,6 +5,8 @@
 //   匹配预设维度，零额外模型调用）+ 软性维度勾选 + 录音选择（拖拽/点击，音频类型）
 // - 任务创建：POST /api/calls {title, job_title, job_id, soft_skill_focus,
 //   soft_skill_dimensions}
+// - 历史任务加载：递增请求序号保证仅最后一次选择可写入 currentCall；最新请求
+//   失败时清空恢复键并重置工作区，视图退出与外层 reset 同时使在途请求失效
 // - 录音上传：PUT /api/calls/{id}/audio?filename=（File 直传），upload.accepted=false +
 //   duplicate_of 判重；重复计数经 duplicateAudioSkipped toast；全部重复 →
 //   noNewAudio 提示，不触发整理
@@ -163,8 +165,24 @@ export function PhoneView({
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
 
   const customSelectRef = useRef<CustomSelectHandle | null>(null);
+  const callSelectSeqRef = useRef(0);
   // 岗位联动导入的请求序号：快速切换岗位时只允许最后一次请求落地，防止乱序覆盖。
   const importFocusSeqRef = useRef(0);
+
+  const resetWorkspace = useCallback(() => {
+    callSelectSeqRef.current += 1;
+    stopCallPolling();
+    releaseAudioBlobs();
+    setDetailItemId(null);
+    state.currentCall = null;
+    state.pendingCallFiles = [];
+    setTitle("");
+    setJobTitle("");
+    setSoftSkillFocus("");
+    setJobId("");
+    setSelectedDims(new Set());
+    rerender();
+  }, [rerender]);
 
   const call = state.currentCall as CallTask | null;
   const callStatus = String(call?.status ?? "");
@@ -213,11 +231,13 @@ export function PhoneView({
   useEffect(() => {
     registerView("phone", {
       exit: () => {
+        callSelectSeqRef.current += 1;
         clearTimeout(state.callPollTimer ?? undefined);
         state.callPollTimer = null;
       },
     });
     return () => {
+      callSelectSeqRef.current += 1;
       clearTimeout(state.callPollTimer ?? undefined);
       state.callPollTimer = null;
     };
@@ -245,18 +265,8 @@ export function PhoneView({
   // 关联岗位选项保留：岗位仅能在筛选视图创建，离开电话视图再返回时由下方加载效果重新拉取。
   useEffect(() => {
     if (!resetSignal) return;
-    stopCallPolling();
-    releaseAudioBlobs();
-    setDetailItemId(null);
-    state.currentCall = null;
-    state.pendingCallFiles = [];
-    setTitle("");
-    setJobTitle("");
-    setSoftSkillFocus("");
-    setJobId("");
-    setSelectedDims(new Set());
-    rerender();
-  }, [resetSignal, rerender]);
+    resetWorkspace();
+  }, [resetSignal, resetWorkspace]);
 
   // 详情浮层条目随轮询/任务切换消失时关闭浮层
   useEffect(() => {
@@ -441,18 +451,22 @@ export function PhoneView({
   // ---- 任务流动作 ----
 
   const selectCall = async (callId: string) => {
+    const requestSeq = ++callSelectSeqRef.current;
     stopCallPolling();
     releaseAudioBlobs();
     setDetailItemId(null);
     try {
       const fetched = await api<CallTask>(`/api/calls/${callId}`);
+      if (requestSeq !== callSelectSeqRef.current || currentView() !== "phone") return;
       state.currentCall = fetched;
       state.pendingCallFiles = [];
       localStorage.setItem("talentHub.activeTool", "phone");
       localStorage.setItem("talentHub.lastCall", callId);
       rerender();
     } catch (error) {
+      if (requestSeq !== callSelectSeqRef.current || currentView() !== "phone") return;
       localStorage.removeItem("talentHub.lastCall");
+      resetWorkspace();
       onToast((error as Error).message);
     }
   };

@@ -16,6 +16,8 @@
 //   写入值沿用既有视图命名约定；viewTitle 在电话视图隐藏，筛选视图按任务标题显示
 // - resultActions（下载筛选标准/评估表格）与追加 FAB 仍由 shell 渲染，显隐与点击由
 //   ScreeningView 同步（results 视图 completed/未归档时可见）
+// - 历史记录生命周期由 HistoryMutation 统一提交：命中当前任务时同步归档摘要或重置
+//   工作区；筛选任务加载使用递增序号，仅最后一次请求可写入 currentJob
 // - class 名沿用 shell 体系（app-shell/topbar/brand-group/
 //   tool-strip/language-switch/connection-state），响应式断点行为由样式表接管
 // =====================================================================
@@ -27,7 +29,7 @@ import { onChange, setLanguage, t } from "./i18n";
 import { show as routerShow, showSection } from "./router";
 import { state } from "./state";
 import { Button } from "./ui/Button";
-import { HistoryDrawer } from "./ui/HistoryDrawer";
+import { HistoryDrawer, type HistoryMutation } from "./ui/HistoryDrawer";
 import { SettingsDialog } from "./ui/SettingsDialog";
 import { StatusDot } from "./ui/StatusDot";
 import { Toast } from "./ui/Toast";
@@ -79,6 +81,7 @@ export function App() {
   const [phoneResetSignal, setPhoneResetSignal] = useState(0);
   const [callOpenRequest, setCallOpenRequest] = useState<{ id: string; seq: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const jobOpenSeqRef = useRef(0);
   const [, forceRender] = useState(0);
 
   /** 电话任务状态变化通知：历史抽屉每次打开都会重新拉取列表，此处无需额外动作 */
@@ -100,24 +103,64 @@ export function App() {
     toastTimer.current = setTimeout(() => setToast(null), 3500);
   }, []);
 
+  const resetScreeningWorkspace = useCallback(() => {
+    jobOpenSeqRef.current += 1;
+    localStorage.removeItem("talentHub.lastJob");
+    state.currentJob = null;
+    setResetSignal((n) => n + 1);
+  }, []);
+
+  const resetPhoneWorkspace = useCallback(() => {
+    localStorage.removeItem("talentHub.lastCall");
+    state.currentCall = null;
+    setCallOpenRequest(null);
+    setPhoneResetSignal((n) => n + 1);
+  }, []);
+
   /** 打开筛选任务：拉取任务并按状态路由 */
   const openJob = useCallback(
     async (jobId: string) => {
+      const requestSeq = ++jobOpenSeqRef.current;
       localStorage.setItem("talentHub.activeTool", "screening");
       localStorage.removeItem("talentHub.lastCall");
       try {
         const job = await api<Record<string, unknown>>(`/api/jobs/${jobId}`);
+        if (requestSeq !== jobOpenSeqRef.current) return;
         state.currentJob = job;
         localStorage.setItem("talentHub.lastJob", jobId);
         navigate(jobView(job));
         forceRender((n) => n + 1);
       } catch (error) {
+        if (requestSeq !== jobOpenSeqRef.current) return;
         showToast((error as Error).message);
-        localStorage.removeItem("talentHub.lastJob");
+        resetScreeningWorkspace();
         navigate("setup");
       }
     },
-    [navigate, showToast]
+    [navigate, resetScreeningWorkspace, showToast]
+  );
+
+  const handleHistoryMutation = useCallback(
+    (mutation: HistoryMutation) => {
+      if (mutation.action === "delete") {
+        if (mutation.kind === "job" && String(state.currentJob?.id ?? "") === mutation.itemId) {
+          resetScreeningWorkspace();
+          navigate("setup");
+        } else if (mutation.kind === "call" && String(state.currentCall?.id ?? "") === mutation.itemId) {
+          resetPhoneWorkspace();
+        }
+        return;
+      }
+
+      if (mutation.kind === "job" && String(state.currentJob?.id ?? "") === mutation.item.id) {
+        state.currentJob = { ...state.currentJob, ...mutation.item };
+        forceRender((n) => n + 1);
+      } else if (mutation.kind === "call" && String(state.currentCall?.id ?? "") === mutation.item.id) {
+        state.currentCall = { ...state.currentCall, ...mutation.item };
+        forceRender((n) => n + 1);
+      }
+    },
+    [navigate, resetPhoneWorkspace, resetScreeningWorkspace]
   );
 
   // 首帧隐藏全部视图区与全局动作容器：可见性由 src/router 直接管理 DOM hidden，
@@ -229,15 +272,12 @@ export function App() {
     setToolStripOpen(false);
     localStorage.setItem("talentHub.activeTool", tool);
     if (tool === "phone") {
-      localStorage.removeItem("talentHub.lastCall");
-      setCallOpenRequest(null);
-      setPhoneResetSignal((n) => n + 1);
+      jobOpenSeqRef.current += 1;
+      resetPhoneWorkspace();
       navigate("phone");
     } else {
-      localStorage.removeItem("talentHub.lastJob");
       localStorage.removeItem("talentHub.lastCall");
-      state.currentJob = null;
-      setResetSignal((n) => n + 1);
+      resetScreeningWorkspace();
       navigate("setup");
     }
   };
@@ -458,6 +498,7 @@ export function App() {
           setCallOpenRequest((prev) => ({ id: callId, seq: (prev?.seq ?? 0) + 1 }));
           navigate("phone");
         }}
+        onMutation={handleHistoryMutation}
       />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {toast && <Toast>{toast}</Toast>}

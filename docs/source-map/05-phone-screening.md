@@ -164,3 +164,7 @@ transcribing/summarizing --取消或进程中断→ queued
 - 单条失败不抹掉其他已完成条目的产物，但任务总体状态为 failed。
 
 状态改动必须同步 `call_state.py`、`phone_screening.py`、仓储归档/删除限制、电话 API、前端状态标签和轮询、电话验证。
+
+历史侧栏通过 `HistoryMutation` 把删除身份或归档/恢复后的服务端摘要提交给 `App`。事件命中 `state.currentCall` 时，删除会清除 `talentHub.lastCall` 与当前任务，并递增 `phoneResetSignal`，由 `PhoneView` 停止轮询、释放音频对象 URL、关闭条目详情并回到新建表单；归档与恢复会把摘要合并到当前完整任务，使追加录音和重试操作立即按最新 `archived_at` 显隐。非当前电话记录的变更只刷新侧栏，不改变主区域。
+
+电话历史任务加载使用独立递增序号。只有最后一次用户选择的响应可以写入 `state.currentCall` 和 `talentHub.lastCall`；视图退出、工作区重置和新的选择都会使早期请求失效。最后一次请求失败时清空当前电话任务、待上传文件和恢复键，并回到新建表单。

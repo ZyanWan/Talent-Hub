@@ -13,6 +13,8 @@
 // - 当前任务切换：点击行 → onOpenJob/onOpenCall props 回调，组件不依赖
 //   screening/phone 模块；active 行按
 //   全局 state 的 currentJob/currentCall id 判断
+// - 记录变更成功：通过 onMutation 上报删除身份或归档/恢复后的服务端摘要，
+//   由外层同步当前工作区
 // - 语言切换经 i18n onChange 重渲染
 // =====================================================================
 
@@ -36,7 +38,12 @@ export interface HistoryItem {
   stage?: string;
   job_title?: string;
   updated_at?: string;
+  archived_at?: string | null;
 }
+
+export type HistoryMutation =
+  | { action: "delete"; kind: HistoryKind; itemId: string }
+  | { action: "archive" | "restore"; kind: HistoryKind; item: HistoryItem };
 
 export interface HistoryDrawerProps {
   open: boolean;
@@ -47,6 +54,8 @@ export interface HistoryDrawerProps {
   onOpenJob: (jobId: string) => void;
   /** 点击 call 行：通知外层打开对应电话任务视图 */
   onOpenCall: (callId: string) => void;
+  /** 记录变更成功：通知外层同步当前工作区 */
+  onMutation: (mutation: HistoryMutation) => void;
 }
 
 interface DeleteTarget {
@@ -169,6 +178,7 @@ export function HistoryDrawer({
   onClose,
   onOpenJob,
   onOpenCall,
+  onMutation,
 }: HistoryDrawerProps) {
   const [kind, setKind] = useState<HistoryKind>(initialKind);
   const [jobScope, setJobScope] = useState<HistoryScope>("recent");
@@ -323,7 +333,8 @@ export function HistoryDrawer({
     setOpenMenuId(null);
     const base = isCall ? `/api/calls/${item.id}` : `/api/jobs/${item.id}`;
     try {
-      await api(`${base}/${action}`, { method: "POST" });
+      const updated = await api<HistoryItem>(`${base}/${action}`, { method: "POST" });
+      onMutation({ action, kind, item: updated });
       await refresh(kind);
       const toastKey =
         action === "archive"
@@ -345,6 +356,7 @@ export function HistoryDrawer({
     const base = pendingDelete.kind === "call" ? `/api/calls/${pendingDelete.item.id}` : `/api/jobs/${pendingDelete.item.id}`;
     try {
       await api(base, { method: "DELETE" });
+      onMutation({ action: "delete", kind: pendingDelete.kind, itemId: pendingDelete.item.id });
       setPendingDelete(null);
       await refresh(pendingDelete.kind);
       showToast(t(pendingDelete.kind === "call" ? "callDeletedToast" : "deletedToast"));

@@ -4,7 +4,7 @@
 // duplicate_of 分支与请求顺序）、progress 轮询渲染与取消（终态后停止轮询）、
 // criteriaReview 表单编辑与保存并开始、results 汇总统计 / A/B/C 过滤 / 对比勾选、
 // 归档任务禁止追加、追加简历（全部重复 → noNewResumes；新文件 → 重新 start）、
-// 下载评估表格（PreviewDialog + Blob）。
+// 历史侧栏归档/恢复/删除当前任务后的工作区同步、下载评估表格（PreviewDialog + Blob）。
 // 仅做渲染级断言，不含截图验证（视觉回归由 tests/visual/baseline.spec.ts 覆盖）。
 // =====================================================================
 
@@ -481,6 +481,89 @@ describe("追加简历", () => {
       expect(fetchMock.mock.calls.some(([u, i]) => String(u) === "/api/jobs/j1/start" && i?.method === "POST")).toBe(true)
     );
     await waitFor(() => expect(document.getElementById("progressView")!.hidden).toBe(false));
+  });
+});
+
+describe("历史任务变更", () => {
+  it("归档与恢复当前任务后立即同步主区域操作状态", async () => {
+    const job = completedJob();
+    let archived = false;
+    mockServer((url, init) => {
+      const method = init?.method ?? "GET";
+      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
+      if (url.pathname === "/api/jobs/j1" && method === "GET") {
+        return Promise.resolve(jsonResponse({ ...job, archived_at: archived ? "2026-09-03T12:00:00+08:00" : null }));
+      }
+      if (url.pathname === "/api/jobs/j1/archive" && method === "POST") {
+        archived = true;
+        return Promise.resolve(jsonResponse({ id: "j1", archived_at: "2026-09-03T12:00:00+08:00" }));
+      }
+      if (url.pathname === "/api/jobs/j1/restore" && method === "POST") {
+        archived = false;
+        return Promise.resolve(jsonResponse({ id: "j1", archived_at: null }));
+      }
+      if (url.pathname === "/api/jobs" && method === "GET") {
+        const wantsArchived = url.searchParams.get("scope") === "archived";
+        const visible = wantsArchived === archived;
+        return Promise.resolve(jsonResponse({ jobs: visible ? [{ ...job, archived_at: archived ? "2026-09-03T12:00:00+08:00" : null }] : [], total: visible ? 1 : 0 }));
+      }
+      if (url.pathname === "/api/storage") return Promise.resolve(jsonResponse({ job_count: 1, jobs_bytes: 0 }));
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+    localStorage.setItem("talentHub.lastJob", "j1");
+    render(<App />);
+
+    await waitFor(() => expect(document.getElementById("appendResumesButton")!.hidden).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    await screen.findByRole("button", { name: /后端工程师/ });
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "归档" }));
+
+    await waitFor(() => expect(state.currentJob?.archived_at).toBe("2026-09-03T12:00:00+08:00"));
+    expect(document.getElementById("appendResumesButton")!.hidden).toBe(true);
+    expect(document.getElementById("editCriteriaButton")!.hidden).toBe(true);
+
+    fireEvent.click(screen.getByRole("tab", { name: /已归档/ }));
+    await screen.findByRole("button", { name: /后端工程师/ });
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "恢复到最近任务" }));
+
+    await waitFor(() => expect(state.currentJob?.archived_at).toBeNull());
+    expect(document.getElementById("appendResumesButton")!.hidden).toBe(false);
+    expect(document.getElementById("editCriteriaButton")!.hidden).toBe(false);
+  });
+
+  it("删除当前简历任务后立即回到初始页并清除恢复状态", async () => {
+    const job = completedJob();
+    let deleted = false;
+    mockServer((url, init) => {
+      const method = init?.method ?? "GET";
+      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
+      if (url.pathname === "/api/jobs/j1" && method === "GET") return Promise.resolve(jsonResponse(job));
+      if (url.pathname === "/api/jobs/j1" && method === "DELETE") {
+        deleted = true;
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
+      if (url.pathname === "/api/jobs" && method === "GET") {
+        return Promise.resolve(jsonResponse({ jobs: deleted ? [] : [job], total: deleted ? 0 : 1 }));
+      }
+      if (url.pathname === "/api/storage") return Promise.resolve(jsonResponse({ job_count: deleted ? 0 : 1, jobs_bytes: 0 }));
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+    localStorage.setItem("talentHub.lastJob", "j1");
+    render(<App />);
+
+    await waitFor(() => expect(document.getElementById("resultsView")!.hidden).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    await screen.findByRole("button", { name: /后端工程师/ });
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "永久删除" }));
+    fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
+
+    await waitFor(() => expect(state.currentJob).toBeNull());
+    expect(localStorage.getItem("talentHub.lastJob")).toBeNull();
+    expect(document.getElementById("setupView")!.hidden).toBe(false);
+    expect(document.getElementById("resultsView")!.hidden).toBe(true);
   });
 });
 

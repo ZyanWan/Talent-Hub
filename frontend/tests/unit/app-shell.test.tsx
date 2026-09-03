@@ -8,7 +8,7 @@
 // 仅做渲染级断言，不含截图验证（视觉回归待页面接入后由 Playwright baseline 补齐）。
 // =====================================================================
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
 import { getLanguage } from "../../src/i18n";
@@ -45,6 +45,14 @@ function jsonResponse(body: unknown, init: { status?: number; headers?: Record<s
     status: init.status ?? 200,
     headers: { "content-type": "application/json", ...init.headers },
   });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
 
 function readySettings() {
@@ -238,6 +246,91 @@ describe("顶栏动作", () => {
 
     expect(await screen.findAllByText("候选人 B")).not.toHaveLength(0);
     expect(screen.queryAllByText("候选人 A")).toHaveLength(0);
+  });
+
+  it("快速切换历史筛选任务时只提交最后一次选择", async () => {
+    const makeJob = (id: string, title: string) => ({
+      id,
+      title,
+      status: "completed",
+      completed: 1,
+      total: 1,
+      results: [{ source_file: `${id}.pdf`, candidate_name: `候选人 ${title}`, conclusion: "A优先约面", blockers: [] }],
+      errors: [],
+    });
+    const jobA = makeJob("job-a", "A");
+    const jobB = makeJob("job-b", "B");
+    const jobC = makeJob("job-c", "C");
+    const pendingB = deferred<Response>();
+    localStorage.setItem("talentHub.lastJob", jobA.id);
+    fetchMock.mockImplementation((url: string) => {
+      const value = String(url);
+      if (value === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
+      if (value === `/api/jobs/${jobA.id}`) return Promise.resolve(jsonResponse(jobA));
+      if (value === `/api/jobs/${jobB.id}`) return pendingB.promise;
+      if (value === `/api/jobs/${jobC.id}`) return Promise.resolve(jsonResponse(jobC));
+      if (value.startsWith("/api/jobs?scope=recent")) {
+        return Promise.resolve(jsonResponse({ jobs: [jobB, jobC], total: 2 }));
+      }
+      if (value.startsWith("/api/jobs?scope=archived")) return Promise.resolve(jsonResponse({ jobs: [], total: 0 }));
+      if (value === "/api/storage") return Promise.resolve(jsonResponse({ job_count: 3, jobs_bytes: 0 }));
+      return Promise.resolve(jsonResponse({}));
+    });
+    render(<App />);
+
+    expect(await screen.findAllByText("候选人 A")).not.toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    fireEvent.click(await screen.findByRole("button", { name: /B/ }));
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    fireEvent.click(await screen.findByRole("button", { name: /C/ }));
+
+    expect(await screen.findAllByText("候选人 C")).not.toHaveLength(0);
+    await act(async () => {
+      pendingB.resolve(jsonResponse(jobB));
+      await pendingB.promise;
+    });
+    expect(state.currentJob?.id).toBe(jobC.id);
+    expect(localStorage.getItem("talentHub.lastJob")).toBe(jobC.id);
+    expect(screen.queryAllByText("候选人 B")).toHaveLength(0);
+  });
+
+  it("最新筛选任务请求失败时清除旧任务并回到初始页", async () => {
+    const jobA = {
+      id: "job-a",
+      title: "任务 A",
+      status: "completed",
+      completed: 1,
+      total: 1,
+      results: [{ source_file: "a.pdf", candidate_name: "候选人 A", conclusion: "A优先约面", blockers: [] }],
+      errors: [],
+    };
+    const missing = { id: "job-missing", title: "失效任务", status: "completed" };
+    localStorage.setItem("talentHub.lastJob", jobA.id);
+    fetchMock.mockImplementation((url: string) => {
+      const value = String(url);
+      if (value === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
+      if (value === `/api/jobs/${jobA.id}`) return Promise.resolve(jsonResponse(jobA));
+      if (value === `/api/jobs/${missing.id}`) {
+        return Promise.resolve(jsonResponse({ detail: "任务不存在" }, { status: 404 }));
+      }
+      if (value.startsWith("/api/jobs?scope=recent")) {
+        return Promise.resolve(jsonResponse({ jobs: [missing], total: 1 }));
+      }
+      if (value.startsWith("/api/jobs?scope=archived")) return Promise.resolve(jsonResponse({ jobs: [], total: 0 }));
+      if (value === "/api/storage") return Promise.resolve(jsonResponse({ job_count: 1, jobs_bytes: 0 }));
+      return Promise.resolve(jsonResponse({}));
+    });
+    render(<App />);
+
+    expect(await screen.findAllByText("候选人 A")).not.toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    fireEvent.click(await screen.findByRole("button", { name: /失效任务/ }));
+
+    expect(await screen.findByText("任务不存在")).toBeInTheDocument();
+    expect(state.currentJob).toBeNull();
+    expect(localStorage.getItem("talentHub.lastJob")).toBeNull();
+    expect(document.getElementById("setupView")!.hidden).toBe(false);
+    expect(document.getElementById("resultsView")!.hidden).toBe(true);
   });
 
   it("设置按钮打开设置弹窗", async () => {

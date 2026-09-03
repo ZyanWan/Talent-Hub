@@ -5,7 +5,8 @@
 // （PUT audio 直传 File + upload.accepted=false/duplicate_of 判重）、全部重复 →
 // noNewAudio 不触发整理且表单保留草稿关联信息、process 触发、轮询渲染条目状态与
 // 进度与取消（终态后停止轮询）、追加录音（done 且未归档显示 FAB，追加后自动 process；
-// 全部重复 → noNewAudio；归档任务隐藏且忽略）、重试、错误处理（上传失败 toast）。
+// 全部重复 → noNewAudio；归档任务隐藏且忽略）、删除当前历史任务后重置工作区、
+// 归档/恢复同步、历史任务切换防乱序与失败回落、重试、错误处理（上传失败 toast）。
 // 仅做渲染级断言，不含截图验证。
 // =====================================================================
 
@@ -28,6 +29,14 @@ function jsonResponse(body: unknown, init: { status?: number; headers?: Record<s
     status: init.status ?? 200,
     headers: { "content-type": "application/json", ...init.headers },
   });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
 
 beforeEach(() => {
@@ -384,6 +393,168 @@ describe("追加录音", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
     expect(fetchMock.mock.calls.some(([u, i]) => String(u)?.includes("/audio") && i?.method === "PUT")).toBe(false);
+  });
+});
+
+describe("历史任务删除", () => {
+  it("删除当前电话任务后立即回到新建表单并清除恢复状态", async () => {
+    const call = {
+      id: "c-delete",
+      title: "待删除电话",
+      status: "done",
+      errors: [],
+      items: [{ id: "i1", audio_file: "a.m4a", status: "done" }],
+    };
+    let deleted = false;
+    mockServer((url, init) => {
+      const method = init?.method ?? "GET";
+      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
+      if (url.pathname === "/api/calls/c-delete" && method === "GET") return Promise.resolve(jsonResponse(call));
+      if (url.pathname === "/api/calls/c-delete" && method === "DELETE") {
+        deleted = true;
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
+      if (url.pathname === "/api/calls" && method === "GET") {
+        return Promise.resolve(jsonResponse({ calls: deleted ? [] : [call], total: deleted ? 0 : 1 }));
+      }
+      if (url.pathname === "/api/storage") return Promise.resolve(jsonResponse({ job_count: 0, jobs_bytes: 0 }));
+      if (url.pathname === "/api/jobs") return Promise.resolve(jsonResponse({ jobs: [], total: 0 }));
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+    localStorage.setItem("talentHub.activeTool", "phone");
+    localStorage.setItem("talentHub.lastCall", call.id);
+    render(<App />);
+
+    await waitFor(() => expect(document.getElementById("callDetailTitle")!.textContent).toBe(call.title));
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    await screen.findByRole("button", { name: /待删除电话/ });
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "永久删除" }));
+    fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
+
+    await waitFor(() => expect(state.currentCall).toBeNull());
+    expect(localStorage.getItem("talentHub.lastCall")).toBeNull();
+    expect(document.getElementById("callCreateView")!.hidden).toBe(false);
+    expect(document.getElementById("callDetailView")!.hidden).toBe(true);
+  });
+
+  it("归档与恢复当前电话任务后立即同步追加按钮状态", async () => {
+    const call = {
+      id: "c-lifecycle",
+      title: "电话状态同步",
+      status: "done",
+      errors: [],
+      items: [{ id: "i1", audio_file: "a.m4a", status: "done" }],
+    };
+    let archived = false;
+    mockServer((url, init) => {
+      const method = init?.method ?? "GET";
+      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
+      if (url.pathname === "/api/calls/c-lifecycle" && method === "GET") {
+        return Promise.resolve(jsonResponse({ ...call, archived_at: archived ? "2026-09-03T12:00:00+08:00" : null }));
+      }
+      if (url.pathname === "/api/calls/c-lifecycle/archive" && method === "POST") {
+        archived = true;
+        return Promise.resolve(jsonResponse({ id: call.id, archived_at: "2026-09-03T12:00:00+08:00" }));
+      }
+      if (url.pathname === "/api/calls/c-lifecycle/restore" && method === "POST") {
+        archived = false;
+        return Promise.resolve(jsonResponse({ id: call.id, archived_at: null }));
+      }
+      if (url.pathname === "/api/calls" && method === "GET") {
+        const wantsArchived = url.searchParams.get("scope") === "archived";
+        const visible = wantsArchived === archived;
+        return Promise.resolve(jsonResponse({ calls: visible ? [{ ...call, archived_at: archived ? "2026-09-03T12:00:00+08:00" : null }] : [], total: visible ? 1 : 0 }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+    localStorage.setItem("talentHub.activeTool", "phone");
+    localStorage.setItem("talentHub.lastCall", call.id);
+    render(<App />);
+
+    await waitFor(() => expect(document.getElementById("appendCallAudioButton")!.hidden).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    await screen.findByRole("button", { name: /电话状态同步/ });
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "归档" }));
+
+    await waitFor(() => expect(state.currentCall?.archived_at).toBe("2026-09-03T12:00:00+08:00"));
+    expect(document.getElementById("appendCallAudioButton")!.hidden).toBe(true);
+
+    fireEvent.click(screen.getByRole("tab", { name: /已归档/ }));
+    await screen.findByRole("button", { name: /电话状态同步/ });
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "恢复到最近任务" }));
+
+    await waitFor(() => expect(state.currentCall?.archived_at).toBeNull());
+    expect(document.getElementById("appendCallAudioButton")!.hidden).toBe(false);
+  });
+});
+
+describe("历史任务切换", () => {
+  it("较早请求迟到时保持最后选择的电话任务", async () => {
+    const callA = { id: "call-a", title: "任务 A", status: "done", errors: [], items: [] };
+    const callB = { id: "call-b", title: "任务 B", status: "done", errors: [], items: [] };
+    const callC = { id: "call-c", title: "任务 C", status: "done", errors: [], items: [] };
+    const pendingB = deferred<Response>();
+    mockServer((url, init) => {
+      const method = init?.method ?? "GET";
+      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
+      if (url.pathname === "/api/calls/call-a" && method === "GET") return Promise.resolve(jsonResponse(callA));
+      if (url.pathname === "/api/calls/call-b" && method === "GET") return pendingB.promise;
+      if (url.pathname === "/api/calls/call-c" && method === "GET") return Promise.resolve(jsonResponse(callC));
+      if (url.pathname === "/api/calls" && method === "GET") {
+        return Promise.resolve(jsonResponse({ calls: [callB, callC], total: 2 }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+    localStorage.setItem("talentHub.activeTool", "phone");
+    localStorage.setItem("talentHub.lastCall", callA.id);
+    render(<App />);
+
+    await waitFor(() => expect(document.getElementById("callDetailTitle")!.textContent).toBe(callA.title));
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    fireEvent.click(await screen.findByRole("button", { name: /任务 B/ }));
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    fireEvent.click(await screen.findByRole("button", { name: /任务 C/ }));
+
+    await waitFor(() => expect(document.getElementById("callDetailTitle")!.textContent).toBe(callC.title));
+    await act(async () => {
+      pendingB.resolve(jsonResponse(callB));
+      await pendingB.promise;
+    });
+    expect(state.currentCall?.id).toBe(callC.id);
+    expect(localStorage.getItem("talentHub.lastCall")).toBe(callC.id);
+  });
+
+  it("最新电话任务请求失败时清除旧详情并回到新建表单", async () => {
+    const current = { id: "call-current", title: "当前任务", status: "done", errors: [], items: [] };
+    const missing = { id: "call-missing", title: "失效任务", status: "done" };
+    mockServer((url, init) => {
+      const method = init?.method ?? "GET";
+      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
+      if (url.pathname === "/api/calls/call-current" && method === "GET") return Promise.resolve(jsonResponse(current));
+      if (url.pathname === "/api/calls/call-missing" && method === "GET") {
+        return Promise.resolve(jsonResponse({ detail: "任务不存在" }, { status: 404 }));
+      }
+      if (url.pathname === "/api/calls" && method === "GET") {
+        return Promise.resolve(jsonResponse({ calls: [missing], total: 1 }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+    localStorage.setItem("talentHub.activeTool", "phone");
+    localStorage.setItem("talentHub.lastCall", current.id);
+    render(<App />);
+
+    await waitFor(() => expect(document.getElementById("callDetailTitle")!.textContent).toBe(current.title));
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    fireEvent.click(await screen.findByRole("button", { name: /失效任务/ }));
+
+    expect(await screen.findByText("任务不存在")).toBeInTheDocument();
+    expect(state.currentCall).toBeNull();
+    expect(localStorage.getItem("talentHub.lastCall")).toBeNull();
+    expect(document.getElementById("callCreateView")!.hidden).toBe(false);
+    expect(document.getElementById("callDetailView")!.hidden).toBe(true);
   });
 });
 

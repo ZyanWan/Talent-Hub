@@ -218,6 +218,10 @@ failed / cancelled / completed
 
 新增或重命名状态时，必须同步：引擎状态转换、仓储归档限制、路由冲突判断、前端 `schedulePoll()`、进度按钮、历史菜单、验证。
 
+历史侧栏通过 `HistoryMutation` 把删除身份或归档/恢复后的服务端摘要提交给 `App`。事件命中 `state.currentJob` 时，删除会清除 `talentHub.lastJob`、使在途打开请求失效并回到初始页；归档与恢复会把摘要合并到当前完整任务，使追加简历、重试和修改标准等操作立即按最新 `archived_at` 显隐。非当前任务的变更只刷新侧栏，不改变主区域。
+
+历史任务打开请求使用递增序号。只有最后一次用户选择的响应可以写入 `state.currentJob` 和 `talentHub.lastJob`；迟到响应被丢弃，最后一次请求失败时清空当前任务并回到初始页。
+
 ## 8. Excel 数据流与跨表契约
 
 `workbook_contract.py` 是 Excel 结构的单一核心契约，规定五张表、表头、结论枚举、证据等级、电话优先级、冻结窗格和筛选标准模块。

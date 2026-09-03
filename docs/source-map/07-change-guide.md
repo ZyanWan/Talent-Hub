@@ -30,6 +30,7 @@
 | ASR 请求参数或响应结构 | `speech_to_text.py`、电话处理器、设置的 ASR 状态、STT 验证 |
 | 首页 DOM ID 或 class | 前端 js/ 模块的节点查询和事件、`styles.css`、首页验证、发布烟测 |
 | 前端本地存储键 | 初始化恢复、切换工具、新建任务、历史恢复 |
+| 历史记录删除、归档、恢复或任务打开 | `HistoryMutation` 事件、`App` 当前任务提交与工作区重置、`lastJob` / `lastCall`、筛选与电话请求序号、归档操作显隐、历史集成验证 |
 | 版本号 | 仅 `app/__init__.py` 的 `__version__`；`scripts/build_windows.ps1` 自动生成 `packaging/version_info.txt`，并通过 Inno Setup `/DMyAppVersion` 参数把版本传给静态 `.iss` |
 | 启动参数或 `/health` | `main.py`、`launcher.py`、`scripts/verify_windows_release.ps1`、重复实例探测 |
 | 清理目录规则 | `.gitignore`（`release/`、`build/`、`dist/`、`.workbuddy/`、`packaging/version_info.txt` 已忽略）、`scripts/build_windows.ps1` 拒绝覆盖已存在的版本 portable/build 子目录 |

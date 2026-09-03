@@ -4,7 +4,7 @@
 // 分页加载更多（offset 追加与显隐）、归档/恢复/永久删除流程（请求端点与
 // 确认框、删除中按钮禁用 + deleting 文案 + toast）、空状态、存储占用
 // 展示、点行触发 onOpenJob/onOpenCall、遮罩/关闭按钮/ESC 关闭行为、
-// 语言切换重渲染、active 行高亮。
+// 生命周期变更回调、语言切换重渲染、active 行高亮。
 // 仅做渲染级断言，不含截图验证（视觉回归由 tests/visual/baseline.spec.ts 覆盖）。
 // =====================================================================
 
@@ -105,6 +105,14 @@ function setupFetch(endpoints: HistoryEndpoints = {}) {
     if (parsed.pathname === "/api/storage") {
       return Promise.resolve(jsonResponse(defaults.storage));
     }
+    const lifecycle = parsed.pathname.match(/^\/api\/(jobs|calls)\/([^/]+)\/(archive|restore)$/);
+    if (lifecycle) {
+      const [, resource, id, action] = lifecycle;
+      const source = resource === "calls"
+        ? [...defaults.callRecent.items, ...defaults.callArchived.items].find((item) => item.id === id)
+        : [...defaults.jobRecent.items, ...defaults.jobArchived.items].find((item) => item.id === id);
+      return Promise.resolve(jsonResponse({ ...source, archived_at: action === "archive" ? "2026-09-03T12:00:00+08:00" : null }));
+    }
     return Promise.resolve(jsonResponse({ ok: true }));
   });
 }
@@ -113,10 +121,11 @@ function renderDrawer(props: Partial<Parameters<typeof HistoryDrawer>[0]> = {}) 
   const onClose = vi.fn();
   const onOpenJob = vi.fn();
   const onOpenCall = vi.fn();
+  const onMutation = vi.fn();
   const view = render(
-    <HistoryDrawer open onClose={onClose} onOpenJob={onOpenJob} onOpenCall={onOpenCall} {...props} />
+    <HistoryDrawer open onClose={onClose} onOpenJob={onOpenJob} onOpenCall={onOpenCall} onMutation={onMutation} {...props} />
   );
-  return { ...view, onClose, onOpenJob, onOpenCall };
+  return { ...view, onClose, onOpenJob, onOpenCall, onMutation };
 }
 
 /** 打开某行的「更多操作」菜单 */
@@ -232,7 +241,7 @@ describe("归档与恢复", () => {
       jobRecent: { items: genJobs(1), total: 1 },
       storage: { job_count: 1, jobs_bytes: 0 },
     });
-    renderDrawer();
+    const { onMutation } = renderDrawer();
     await screen.findByText("任务-1");
 
     openRowMenu();
@@ -241,6 +250,11 @@ describe("归档与恢复", () => {
     await waitFor(() =>
       expect(callsWith("POST", "/api/jobs/job-1/archive")).toHaveLength(1)
     );
+    expect(onMutation).toHaveBeenCalledWith({
+      action: "archive",
+      kind: "job",
+      item: expect.objectContaining({ id: "job-1", archived_at: "2026-09-03T12:00:00+08:00" }),
+    });
     expect(await screen.findByText("任务已归档")).toBeInTheDocument();
   });
 
@@ -355,7 +369,7 @@ describe("永久删除", () => {
     setupFetch({
       callRecent: { items: genCalls(1), total: 1 },
     });
-    renderDrawer({ initialKind: "call" });
+    const { onMutation } = renderDrawer({ initialKind: "call" });
     await screen.findByText("电话确认-1");
 
     openRowMenu();
@@ -364,6 +378,7 @@ describe("永久删除", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
     await waitFor(() => expect(callsWith("DELETE", "/api/calls/call-1")).toHaveLength(1));
+    expect(onMutation).toHaveBeenCalledWith({ action: "delete", kind: "call", itemId: "call-1" });
     expect(await screen.findByText("任务已删除")).toBeInTheDocument();
   });
 });

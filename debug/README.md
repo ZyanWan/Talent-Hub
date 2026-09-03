@@ -13,6 +13,8 @@
 
 | 状态 | 问题 | 目标 |
 | --- | --- | --- |
+| CLOSED | [history-workspace-state-consistency](./bugs/history-workspace-state-consistency.md) | 统一历史记录变更、任务切换与当前工作区状态 |
+| CLOSED | [phone-history-delete-active-task](./bugs/phone-history-delete-active-task.md) | 定位删除当前电话记录后主区域未立即重置的问题 |
 | CLOSED | [modal-scroll-through](./bugs/modal-scroll-through.md) | 定位模态框打开后滚轮仍能滚动背景页面的问题 |
 | CLOSED | [screening-history-result-refresh](./bugs/screening-history-result-refresh.md) | 定位简历筛选结果页切换历史任务后主内容未即时刷新的问题 |
 | CLOSED | [call-detail-backdrop-stacking](./bugs/call-detail-backdrop-stacking.md) | 定位电话条目详情遮罩无法覆盖顶栏语言按钮的问题 |
