@@ -936,19 +936,27 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
       <div className="review-actions">
         <Button
           variant="secondary"
+          className="review-back-button"
           id="cancelCriteriaButton"
           onClick={() => onNavigate(jobView(state.currentJob))}
         >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M19 12H5" />
+            <path d="m12 19-7-7 7-7" />
+          </svg>
           <span>{t("back")}</span>
         </Button>
         <Button
           variant="primary"
+          className="review-confirm-button"
           id="confirmCriteriaButton"
           busy={confirming}
           onClick={() => void confirmCriteriaAndStart()}
         >
           <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M5 13l4 4L19 7" />
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+            <path d="M17 21v-8H7v8" />
+            <path d="M7 3v5h8" />
           </svg>
           <span>{t(reviewMode === "re-edit" ? "confirmAndRestart" : "confirmAndStart")}</span>
         </Button>
