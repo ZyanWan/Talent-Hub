@@ -7,4 +7,5 @@ pydantic==2.12.5
 pypdf==6.7.5
 pypdfium2==5.5.0
 pytesseract==0.3.13
+python-multipart==0.0.32
 uvicorn==0.41.0
