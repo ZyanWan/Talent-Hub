@@ -56,6 +56,7 @@ interface ReviewRuleRow {
 }
 
 interface CriteriaEditorState {
+  job_title: string;
   essence: string;
   lists: Record<string, string[]>;
   rules: Record<string, ReviewRuleRow[]>;
@@ -85,6 +86,22 @@ const REVIEW_RULE_FIELDS: Array<[string, string]> = [
   ["c_conditions", "C类规则（不推进）"],
   ["negative_signals", "负向否决信号"],
 ];
+
+const RULE_ID_PREFIX: Record<string, string> = {
+  hard_requirements: "H",
+  a_conditions: "A",
+  b_conditions: "B",
+  c_conditions: "C",
+  negative_signals: "N",
+};
+
+function nextRuleId(field: string, rows: ReviewRuleRow[]): string {
+  const prefix = RULE_ID_PREFIX[field] || "R";
+  const used = new Set(rows.map((row) => row.id).filter(Boolean));
+  let index = 1;
+  while (used.has(`${prefix}${index}`)) index += 1;
+  return `${prefix}${index}`;
+}
 const RESUME_ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.png,.jpg,.jpeg,.webp,.tif,.tiff,.bmp";
 
 /** 任务状态 → 视图名（completed/有结果的 failed → results，waiting → criteriaReview，其余 → progress） */
@@ -343,7 +360,12 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
             }))
             : [];
         }
-        setCriteriaEditor({ essence: String(criteria.essence || ""), lists, rules });
+        setCriteriaEditor({
+          job_title: String(criteria.job_title || state.currentJob?.title || ""),
+          essence: String(criteria.essence || ""),
+          lists,
+          rules,
+        });
         setReviewMode(pendingReviewMode.current || "calibrate");
         pendingReviewMode.current = null;
       } catch (error) {
@@ -566,7 +588,10 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
 
   const collectCriteria = (): Record<string, unknown> => {
     if (!criteriaEditor) return {};
-    const result: Record<string, unknown> = { essence: criteriaEditor.essence.trim() };
+    const result: Record<string, unknown> = {
+      job_title: criteriaEditor.job_title.trim(),
+      essence: criteriaEditor.essence.trim(),
+    };
     for (const [name] of REVIEW_LIST_FIELDS) {
       result[name] = (criteriaEditor.lists[name] || []).map((value) => value.trim()).filter(Boolean);
     }
@@ -618,7 +643,8 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
     const file = item.source_file || "";
     if (!file) return;
     if (state.compareSelection.has(file)) state.compareSelection.delete(file);
-    else state.compareSelection.add(file);
+    else if (state.compareSelection.size < 20) state.compareSelection.add(file);
+    else onToast(t("compareLimit"));
     rerender();
   };
 
@@ -918,7 +944,11 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
                       type="button"
                       className="review-add-button"
                       onClick={() => {
-                        const next = [...(criteriaEditor.rules[name] || []), { rule: "", verification: "" }];
+                        const current = criteriaEditor.rules[name] || [];
+                        const next = [
+                          ...current,
+                          { id: nextRuleId(name, current), rule: "", verification: "" },
+                        ];
                         setCriteriaEditor({ ...criteriaEditor, rules: { ...criteriaEditor.rules, [name]: next } });
                       }}
                     >
@@ -1068,7 +1098,9 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
                   <td className="compare-cell">
                     <input
                       type="checkbox"
-                      disabled={!completed || item.conclusion === "C不推进"}
+                      disabled={!completed || item.conclusion === "C不推进" || (
+                        state.compareSelection.size >= 20 && !state.compareSelection.has(item.source_file || "")
+                      )}
                       title={item.conclusion === "C不推进" ? t("compareExcludeC") : undefined}
                       checked={Boolean(item.source_file && state.compareSelection.has(item.source_file))}
                       onChange={() => toggleCompare(item)}

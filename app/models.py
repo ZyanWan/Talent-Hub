@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 Conclusion = Literal["A优先约面", "B电话确认", "C不推进"]
 EvidenceStatus = Literal["匹配", "待确认", "不匹配", "未体现"]
+
+PROTECTED_CANDIDATE_ATTRIBUTE_RE = re.compile(
+    r"年龄|性别|民族|籍贯|婚育|婚姻|已婚|未婚|生育|已育"
+)
 
 
 class RuleItem(BaseModel):
@@ -48,6 +53,39 @@ class ScreeningCriteria(BaseModel):
         if isinstance(value, str):
             return [value]
         return value
+
+    @model_validator(mode="after")
+    def normalize_decision_rules(self):
+        """删除受保护属性规则，并为全部规则生成稳定且唯一的 ID。"""
+        fields = (
+            ("hard_requirements", "H"),
+            ("a_conditions", "A"),
+            ("b_conditions", "B"),
+            ("c_conditions", "C"),
+            ("negative_signals", "N"),
+        )
+        used: set[str] = set()
+        for field_name, prefix in fields:
+            items: list[RuleItem] = []
+            next_index = 1
+            for item in getattr(self, field_name):
+                item.rule = item.rule.strip()
+                item.verification = item.verification.strip()
+                if not item.rule or PROTECTED_CANDIDATE_ATTRIBUTE_RE.search(
+                    f"{item.rule} {item.verification}"
+                ):
+                    continue
+                candidate_id = item.id.strip()
+                if not candidate_id or candidate_id in used:
+                    while f"{prefix}{next_index}" in used:
+                        next_index += 1
+                    candidate_id = f"{prefix}{next_index}"
+                used.add(candidate_id)
+                item.id = candidate_id
+                items.append(item)
+                next_index += 1
+            setattr(self, field_name, items)
+        return self
 
 
 class EvidenceDimension(BaseModel):
@@ -92,6 +130,13 @@ class HardGateVerdict(BaseModel):
     note: str = ""
 
 
+class BonusSignalHit(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    signal: str = ""
+    evidence: str = ""
+
+
 class CandidateEvaluation(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -108,6 +153,7 @@ class CandidateEvaluation(BaseModel):
     evidence_level: Literal["高", "中", "低"] = "低"
     evidence: CandidateEvidence = Field(default_factory=CandidateEvidence)
     hard_gate: list[HardGateVerdict] = Field(default_factory=list)
+    bonus_signal_hits: list[BonusSignalHit] = Field(default_factory=list)
     phone_questions: list[PhoneQuestion] = Field(default_factory=list)
     source_file: str = ""
     guard_warnings: list[str] = Field(default_factory=list)
@@ -128,7 +174,6 @@ class CallFact(BaseModel):
     id: str = ""
     content: str = ""
     speaker: Literal["HR", "候选人", "未知"] = "未知"
-    timestamp: str = ""
     ref: str = ""
     start_time: float | None = None  # 秒；程序回放定位用，模型不输出
     end_time: float | None = None    # 秒；程序回放定位用，模型不输出
@@ -145,12 +190,36 @@ class CallField(BaseModel):
     note: str = ""
 
 
+class CallRemarkBullet(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    text: str = ""
+    fact_ids: list[str] = Field(default_factory=list)
+
+
 class CallRemarkSection(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     id: str = ""
     title: str = ""
-    bullets: list[str] = Field(default_factory=list)
+    bullets: list[CallRemarkBullet] = Field(default_factory=list)
+
+    @field_validator("bullets", mode="before")
+    @classmethod
+    def coerce_bullets(cls, value):
+        if not isinstance(value, list):
+            return value
+        return [
+            {"text": item, "fact_ids": []} if isinstance(item, str) else item
+            for item in value
+        ]
+
+
+class CallSoftSkillObservation(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    text: str = ""
+    fact_ids: list[str] = Field(default_factory=list)
 
 
 class CallQA(BaseModel):
@@ -166,7 +235,7 @@ class CallSummary(BaseModel):
     candidate_name: str = ""
     call_date: str = ""
     remark_sections: list[CallRemarkSection] = Field(default_factory=list)
-    soft_skill_summary: list[str] = Field(default_factory=list)
+    soft_skill_summary: list[CallSoftSkillObservation] = Field(default_factory=list)
     soft_skill_summary_title: str = ""
     narrative: str = ""
     fields: list[CallField] = Field(default_factory=list)
@@ -183,5 +252,10 @@ class CallSummary(BaseModel):
         if value is None:
             return []
         if isinstance(value, str):
-            return [value] if value.strip() else []
+            return [{"text": value, "fact_ids": []}] if value.strip() else []
+        if isinstance(value, list):
+            return [
+                {"text": item, "fact_ids": []} if isinstance(item, str) else item
+                for item in value
+            ]
         return value

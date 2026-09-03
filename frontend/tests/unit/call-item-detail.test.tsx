@@ -40,7 +40,7 @@ function doneCall(): CallTask {
         error: null,
         summary: {
           narrative: "候选人表达清晰",
-          fields: [{ key: "k1", label: "岗位匹配度", value: "高", status: "满足", fact_ids: ["f1"], note: "备注" }],
+          fields: [{ key: "k1", label: "岗位匹配度", value: "高", status: "含糊", fact_ids: ["f1"], note: "备注" }],
           facts: [{ content: "事实内容1", speaker: "张三", ref: "r1", start_time: 12 }],
           doubts: ["疑点内容"],
           guard_warnings: ["告警内容"],
@@ -151,6 +151,7 @@ describe("详情渲染", () => {
     expect(screen.getByText("证据校验提示（1）")).toBeInTheDocument();
     // 面板内容
     expect(screen.getByText("岗位匹配度")).toBeInTheDocument();
+    expect(screen.getByText("含糊")).toBeInTheDocument();
     expect(screen.getByDisplayValue("高")).toBeInTheDocument();
     expect(screen.getByText("事实内容1")).toBeInTheDocument();
     expect(screen.getByText("张三 · 0:12 · r1")).toBeInTheDocument();
@@ -366,7 +367,7 @@ describe("编辑保存", () => {
     expect(savedBody).toEqual({
       narrative: "新的整理记录",
       candidate_name: "张三",
-      fields: [{ key: "k1", label: "岗位匹配度", value: "较高", status: "满足", fact_ids: ["f1"], note: "备注" }],
+      fields: [{ key: "k1", label: "岗位匹配度", value: "较高", status: "含糊", fact_ids: ["f1"], note: "备注" }],
     });
     expect(state.currentCall).toEqual(call); // 回读结果写入全局状态
     expect(onToast).toHaveBeenCalledWith("已保存");

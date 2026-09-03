@@ -75,10 +75,10 @@ Currently supported modules — more will follow:
 | --- | --- |
 | **Criteria first** | Generates the job essence, target profile, business scenarios, key actions, hard requirements, negative signals, and A/B/C decision rules from the JD. |
 | **Evidence-driven evaluation** | Match and mismatch judgments must be grounded in the resume source: direct quotes are preferred, and reasonable inference from the full experience is allowed; judgments with no traceable basis in the source are downgraded or sent to manual review. |
-| **Tiered recommendations** | Outputs "Interview first (A)", "Confirm by phone (B)", and "Do not proceed (C)", with risk notes and phone-confirmation questions. |
+| **Tiered recommendations** | Code applies one state machine: a supported hard/core mismatch is C, an unknown hard/core fact is B, and all required checks passing is A. |
 | **Batch evaluation** | Supports 1–12 concurrent candidates in a single pass with no second model call; one parsing or model-request failure does not stop the remaining resumes. |
 | **Saved partial results** | Each successful evaluation is saved locally immediately; if batch finalization fails, completed candidates remain viewable and the run can be restarted, while download, append, and notification actions stay unavailable until formal artifacts exist. |
-| **Side-by-side comparison** | Ranks selected candidates with AI and outputs the recommended interview order with reasons. |
+| **Side-by-side comparison** | Compares up to 20 A/B candidates; code keeps every A ahead of every B, while AI only orders candidates within the same tier and explains why. |
 | **Multi-format parsing** | Supports PDF, DOCX, TXT, Markdown, and common image formats; scanned documents can use Tesseract OCR. |
 | **Deliverable results** | Generates and validates a five-sheet Excel workbook (candidate summary, evidence matching, phone-confirmation questions, screening criteria, recommendation list) plus Markdown screening criteria. |
 
@@ -87,8 +87,8 @@ Currently supported modules — more will follow:
 | Capability | Description |
 | --- | --- |
 | **Batch transcription** | Upload multiple recordings (m4a / wav / mp3 / ogg / opus) powered by Volcano Engine ASR. |
-| **AI summarization** | Produces structured notes with organized highlights, bullet-point soft-skill summaries, and optional Q&A detail (off by default for speed). |
-| **Fact guardrails** | Fact references must trace back to the transcript; otherwise they are flagged as unconfirmed for HR to judge during review. |
+| **AI summarization** | Produces structured notes, optional fact-linked soft-skill observations, and optional Q&A detail (off by default); no soft-skill judgment is produced without evidence. |
+| **Fact guardrails** | Fields, note bullets, soft-skill observations, and Q&A must trace back to the transcript; unsupported content is downgraded or removed, and field status is visible to HR. |
 | **Manual review & download** | After per-candidate review, export a Markdown record for each candidate. |
 
 ### Feishu push
@@ -107,6 +107,7 @@ Currently supported modules — more will follow:
 - **Local-first**: data is stored on the user's machine (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`), never in the source tree.
 - **Key security**: Windows encrypts model, ASR, and Feishu signature keys with the current user's DPAPI; macOS uses environment variables for secrets.
 - **Loopback isolation**: the service listens on `127.0.0.1` only and generates a per-session token at startup.
+- **Fairness boundary**: age, sex, ethnicity, place of origin, marital status, and reproductive status do not become screening rules or ranking factors.
 - **Frontend**: React + TypeScript frontend (Vite build), served by FastAPI.
 - **Optional Feishu notifications**: pushes result summaries via a Feishu custom bot Webhook, with no new third-party dependency.
 

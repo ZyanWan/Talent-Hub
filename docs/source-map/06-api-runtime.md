@@ -64,17 +64,17 @@ progress, error, summary
 
 ```text
 candidate_name, call_date, narrative,
-remark_sections[].{title,bullets}, soft_skill_summary_title,
-soft_skill_summary[],
+remark_sections[].{title,bullets[].{text,fact_ids}}, soft_skill_summary_title,
+soft_skill_summary[].{text,fact_ids},
 qa_records[].{question,answer},
 fields[].{key,label,value,status,fact_ids,note},
-facts[].{id,content,speaker,timestamp,ref,start_time,end_time},
+facts[].{id,content,speaker,ref,start_time,end_time},
 extra_info, doubts, guard_warnings, transcript
 ```
 
 `fields[].key` 是人工编辑的稳定身份；`facts[].id` 是事实引用（字段 `fact_ids`）的稳定身份。修改它们会影响事实守卫、人工编辑和旧摘要兼容。
 
-前端实际直接消费的子集：任务字段中仅 `progress`、`created_at` 不被前端直接读取（电话任务结构不存在 `completed`/`total`，二者是 Job 任务专有字段）；摘要直接渲染 `narrative`、`fields[].{key,label,value}`、`facts[].{content,speaker,ref,start_time}`、`doubts`、`guard_warnings`、`transcript`；`remark_sections`、`soft_skill_summary`、`soft_skill_summary_title`、`qa_records` 由后端 `render_remark_narrative()` 渲染进 `narrative` 后间接消费；`call_date`、`extra_info`、`facts[].timestamp` 及 `fields[].{status,fact_ids,note}`（渲染路径）前端不直接读取，后者仅在编辑保存时透传。
+前端实际直接消费的子集：任务字段中仅 `progress`、`created_at` 不被前端直接读取（电话任务结构不存在 `completed`/`total`，二者是 Job 任务专有字段）；摘要直接渲染 `narrative`、`fields[].{key,label,value,status}`、`facts[].{content,speaker,ref,start_time}`、`doubts`、`guard_warnings`、`transcript`；`remark_sections`、`soft_skill_summary`、`soft_skill_summary_title`、`qa_records` 由后端 `render_remark_narrative()` 渲染进 `narrative` 后间接消费；`call_date`、`extra_info` 及 `fields[].{fact_ids,note}` 前端不直接展示，编辑保存时仍会透传。
 
 ### 11.4 前端轮询
 

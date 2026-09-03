@@ -286,6 +286,7 @@ describe("criteriaReview 表单", () => {
     const waiting = { id: "j1", title: "岗位候选人筛选", status: "waiting", stage: "等待校准筛选标准", progress: 30, completed: 0, total: 2, results: [], errors: [] };
     const queued = { id: "j1", title: "岗位候选人筛选", status: "queued", stage: "准备处理", progress: 1, total: 2, results: [], errors: [] };
     const criteria = {
+      job_title: "后端工程师",
       essence: "交付高质量后端服务",
       core_outputs: ["产出A"],
       target_objects: [],
@@ -339,10 +340,12 @@ describe("criteriaReview 表单", () => {
     );
     expect(putCall).toBeDefined();
     const body = JSON.parse(String(putCall![1]?.body)) as {
+      job_title: string;
       essence: string;
       core_outputs: string[];
       hard_requirements: Array<{ id: string; rule: string; verification: string }>;
     };
+    expect(body.job_title).toBe("后端工程师");
     expect(body.essence).toBe("交付高质量且可维护的后端服务");
     expect(body.core_outputs).toEqual(["产出A"]);
     expect(body.hard_requirements).toEqual([{ id: "r1", rule: "门槛1", verification: "核验1" }]);

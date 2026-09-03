@@ -6,7 +6,7 @@
 
 ## 9. 电话确认端到端数据流
 
-电话链路保持单次模型调用：模型一次生成完整 `CallSummary`；程序事实守卫负责核验 `facts[].ref`，并将缺少有效事实依据的已确认字段降级为含糊。`soft_skill_summary` 是由 Prompt 约束的文本数组，不保存独立引用，也不经过程序化软性引用守卫，由 HR 人工复核；人工编辑是最终校正边界。不存在二次模型复核。`CallRepository` 复用 `repository.py` 的 `JsonStore`，因此电话任务的 JSON 保存、归档、恢复、删除和锁语义与岗位任务共享同一底层仓储规则。
+电话链路由一次逻辑整理生成完整 `CallSummary`，结构或事实引用校验失败时最多纠正重试一次，不执行第二轮内容复核。程序要求事实 ID 唯一且 `facts[].ref` 可回溯到转写原文；字段、客观要点和软性观察都通过 `fact_ids` 引用有效事实，无有效引用的内容不会进入最终 `narrative`。人工编辑是最终校正边界。`CallRepository` 复用 `repository.py` 的 `JsonStore`，因此电话任务的 JSON 保存、归档、恢复、删除和锁语义与岗位任务共享同一底层仓储规则。
 
 ### 9.1 创建和上传
 
@@ -47,11 +47,11 @@ POST /api/calls/<id>/process
      2. speech_to_text.transcribe_audio()
      3. render_transcript() → transcripts/<item_id>.txt
      4. transcribing → summarizing
-     5. AI 单次调用完成信息整理（CallSummary）：system prompt 注入软性 8 维度框架（soft-skill-framework.md），user prompt 携带选中的维度与自定义关注项；输出三层整理结构（客观记录章节/分点式软性概述/快筛问答）；快筛问答（qa_records）按设置开关 `call_qa_records` 决定是否要求生成（默认关闭，关闭可大幅减少模型输出、显著提速）
-     6. validate_call_structure() 检查动态章节和字段完整性
-     7. apply_call_guard() 校验事实引用并降级无依据字段
+     5. AI 生成 CallSummary：候选人信息、软性关注项和转写放入明确的不可信数据边界；转写超过 160,000 字符时保留首 120,000 与末 40,000 字符并显式标注省略；快筛问答按 `call_qa_records` 开关生成
+     6. apply_call_guard() 校验事实 ID、原文引用、字段、章节要点、软性观察和问答
+     7. validate_call_structure() 检查守卫后的动态章节、事实 ID 和字段完整性；失败时纠正重试一次
      8. render_remark_narrative() 渲染统一 narrative
-     9. attach_fact_timestamps() 按 fact.ref 在转写文本/原始转写中定位录音时间区间，写入 facts[].start_time/end_time（程序计算，不依赖模型输出 timestamp）
+     9. attach_fact_timestamps() 按 fact.ref 在转写文本/原始转写中定位录音时间区间，写入 facts[].start_time/end_time；模型不输出时间戳字段
     10. summaries/<item_id>.json 和 .md
     11. record.json 中对应条目写入 summary
     12. summarizing → done
@@ -59,7 +59,7 @@ POST /api/calls/<id>/process
 
 录音回放定位：`GET /api/calls/{call_id}/items/{item_id}/audio` 按 token 校验后返回录音文件流（前端 fetch 为 Blob 播放，不新增存储）；事实时间戳由 `attach_fact_timestamps()` 在落盘前计算并持久化到 `facts[].start_time/end_time`，旧任务无时间戳时前端降级为不可点击。
 
-每条录音只发生一次模型调用：
+每条录音只有一个模型整理阶段；结构或引用失败时该阶段最多纠正重试一次：
 
 | 阶段 | 模型输入 | 模型输出 | 程序责任 |
 | --- | --- | --- | --- |
@@ -71,8 +71,8 @@ POST /api/calls/<id>/process
 
 ```text
 candidate_name, call_date,
-remark_sections[]     动态业务章节（title, bullets，条数不设上限、宁多勿漏）
-soft_skill_summary[]  分点式软性表现概述
+remark_sections[]     动态业务章节（title, bullets[].{text,fact_ids}）
+soft_skill_summary[]  可选软性表现观察（text,fact_ids；证据不足时为空）
 soft_skill_summary_title  概述章节标题（可选）
 qa_records[]          快筛详情通篇问答（question, answer；按设置开关生成，默认关闭；关闭时程序侧解析后强制清空，模型自行输出也不保留）
 narrative             由上述结构渲染的统一可编辑文本，用于展示和 Markdown 下载
@@ -84,11 +84,12 @@ guard_warnings[], transcript（转写原文，守卫与时间戳的核对基准�
 
 首轮整理必须至少满足：
 
-- `remark_sections` 至少一项，且每项标题与要点非空；
+- `facts[].id` 全部非空且唯一；
+- `remark_sections` 至少一项，且每项标题与守卫后的要点非空；
 - `fields` 非空；
 - 渲染后的 `narrative` 非空。
 
-软性表现概述与快筛详情（`qa_records`）不是必填项：没有可靠原文证据时可以为空，模型不得强行凑项。`soft_skill_summary` 只保存分点数组，不保存问题、回答、引用、置信度或逐条观察明细；概述须客观克制，既可指出积极表现，也可指出证据支持的局限或风险。
+软性表现概述与快筛详情（`qa_records`）不是必填项：没有可靠原文证据时可以为空。每条软性观察保存文本和事实 ID，不保存人格标签或置信度；概述须客观克制，既可指出积极表现，也可指出证据支持的局限或风险。
 
 首轮若返回空壳，视为结构失败并携带错误重试一次；连续失败则该条目进入 failed，不得以空摘要标记 done。
 
@@ -96,11 +97,11 @@ guard_warnings[], transcript（转写原文，守卫与时间戳的核对基准�
 
 客观事实守卫规则（`apply_call_guard`，核对基准为**输入转写原文**（ASR 渲染文本），宽松归一 `_loose_normalize`：去空白/小写/全半角标点统一/中文数字转阿拉伯）：
 
-- `CallFact.ref` 语义是「**转写原文原句短线索**」——prompt 强制逐字引用输入转写文本的连续原句（**含 ASR 错字原样，不得修正、不得改写、不得概括**）；因此 ref 与核对基准同源，宽松匹配容忍去口语词、标点与数字读法差异，但处理不了错字替换——这是 ref 必须与核对基准同源的根本原因。模型擅自修正错字（如「家挺」→「家庭」）会导致 ref 在原文失配，被守卫判 doubt 并降级为含糊（防编造）。
-- “已确认”字段如果没有事实 ID，或引用事实未通过核验，则降为“含糊”。
-- 守卫只降级依据不足的状态并记录 `guard_warnings`，不凭空补充事实。
-
-`qa_records`（快筛详情）不参与事实守卫——它是 HR 按需取舍的整理材料而非程序断言，这是刻意设计。
+- `CallFact.id` 必须非空且任务条目内唯一；空 ID、重复 ID、空 ref 或原文无法命中的 ref 都不能成为有效事实依据。
+- “已确认”字段如果没有事实 ID，或引用任何无效/不存在的事实，则降为“含糊”；前端同时展示字段值和确认状态。
+- 客观章节要点与软性观察必须引用有效事实，否则删除并记录 `guard_warnings`；守卫后章节为空会触发一次结构纠正。
+- `qa_records` 的问题与非空回答必须能在转写原文中命中，否则不保留。
+- 守卫只删除无依据内容或降级状态，不凭空补充事实。
 
 ### 9.5 多录音并发与隔离
 

@@ -14,7 +14,7 @@
 | `app/models.py` | 筛选（含硬性门槛判定）、证据、电话摘要（动态章节/软性观察/快筛问答）的 Pydantic 契约 | Prompt 输出、持久化 JSON、Excel、前端字段 |
 | `app/repository.py` | `JsonStore` 通用 JSON 仓储、岗位任务 JSON、文件目录、归档、删除、路径和文件名安全 | `main.py`、`pipeline.py`、`call_repository.py`、任务恢复 |
 | `app/call_repository.py` | 电话任务（含 soft_skill_focus、soft_skill_dimensions、job_id）、音频与条目持久化 | `main.py`、`phone_screening.py`、前端电话页 |
-| `app/llm.py` | OpenAI 兼容接口、JSON 提取、重试、取消 | 筛选标准、候选人评估、横向对比、电话整理 |
+| `app/llm.py` | OpenAI 兼容接口、动态输入安全序列化、JSON 提取、传输重试、截断/过滤终止识别、取消 | 筛选标准、候选人评估、横向对比、电话整理 |
 | `app/pipeline.py` | 简历筛选主流程、证据守卫、续跑、Excel 载荷 | 任务状态、结果 JSON、工作簿、前端进度 |
 | `app/artifact_preview.py` | Markdown 和 Excel 安全预览 | 产物预览 API、前端预览对话框 |
 | `app/runtime/extract_resume_text.py` | PDF、DOCX、文本基础解析、清洗（去水印/修复断词/清控制字符）及质量判断 | `pipeline.py`、解析 CLI |
@@ -23,8 +23,8 @@
 | `app/runtime/workbook_contract.py` | 五表名称、表头、枚举和格式契约 | 构建器、校验器、验证、业务输出 |
 | `app/runtime/call_state.py` | 电话条目状态机和中断收敛 | `phone_screening.py`、电话重试和取消 |
 | `app/runtime/speech_to_text.py` | 火山 ASR 请求、音频输入校验、请求参数和转写渲染 | 电话处理器、ASR 验证 |
-| `app/runtime/phone_screening.py` | 电话处理、事实引用守卫、软性 8 维度框架注入、三层 narrative 渲染（客观记录/软性表现概述/可选快筛详情）、Markdown | 电话任务状态、摘要文件、前端电话详情 |
-| `app/resources/references/` | 运行时参考规则库：证据规则、Excel/PDF 规则、易错点和软性素质框架 | `pipeline.py`、`phone_screening.py`、Prompt 与守卫规则 |
+| `app/runtime/phone_screening.py` | 电话处理、事实引用守卫、软性素质参考框架注入、三层 narrative 渲染（客观记录/软性表现概述/可选快筛详情）、Markdown | 电话任务状态、摘要文件、前端电话详情 |
+| `app/resources/references/` | 运行时参考规则库：证据规则、Excel/PDF 规则和软性素质框架 | `pipeline.py`、`phone_screening.py`、Prompt 与守卫规则 |
 | `frontend/src/**` | React+TS 前端：App.tsx（外壳/顶栏/启动）、views/（筛选/电话/简历工作台）、ui/（弹窗与基础组件）、api/client.ts（唯一 API client）、i18n/（messages.ts 唯一消息源）、router/、state/、customSelect.ts | 后端路由、JSON 字段、状态枚举、契约与单元测试 |
 | `launcher.py` | PyInstaller 薄启动入口 | `app.main.main`、打包配置 |
 | `start-app.bat` | Windows 一键启动：后端（launcher.py）+ 前端监听（`vite build --watch` 自动重建 dist） | `launcher.py`、`frontend/` 构建 |
@@ -33,7 +33,10 @@
 | `packaging/talent_hub_macos.spec` | macOS PyInstaller `.app` bundle 配置 | macOS 发布产物、资源收集、启动入口 |
 | `scripts/build_macos.sh` | macOS PyInstaller 构建、许可证、烟测和版本化 zip 输出 | 版本、发布目录、macOS packaging 文件 |
 | `scripts/verify_macos_release.sh` | macOS 可执行文件启动、临时数据目录和首页烟测 | `main.py` 参数、`/health`、首页结构 |
+| `scripts/extract_model_texts.py` | 从实际 Prompt 构造函数生成完整模型输入文本清单 | `MODEL_INPUT_TEXTS.md`、Prompt 工程审阅 |
+| `MODEL_INPUT_TEXTS.md` | 生产与调试链路发送给模型的静态文本、动态边界、重试指令和请求信封快照 | Prompt 工程审阅、变更核对 |
 | `tests/test_resume_preview.py` | PDF 预览并发串行化与失败清理回归验证 | `app/main.py` 的 PDFium 渲染边界 |
+| `tests/test_prompt_contracts.py` | 分级状态机、事实引用、动态边界、横向对比和模型终止原因回归验证 | `models.py`、`pipeline.py`、`phone_screening.py`、`main.py`、`llm.py` |
 | `debug/` | 非生产链路的调试和实验辅助目录 | Prompt 对比、问题复现、维护记录 |
 
 ### 2.1 前端模块化约定
@@ -69,7 +72,7 @@
 `frontend/` 是生产前端实现（React + TypeScript，Vite 构建；构建产物 `frontend/dist` 由 FastAPI 托管，`GET /` 注入 token、根路径挂载静态资源）：
 
 - `frontend/src/api/client.ts`：唯一 API client，实现 `X-App-Token` 注入、string body JSON Content-Type、错误 `detail` 透传三态、content-type JSON/非 JSON 判定；行为由契约测试 `api-client.test.ts` 锁定。
-- `frontend/src/i18n/`：`messages.ts` 为手工维护的唯一消息源（zh/en 各 255 key，勿手改）；`index.ts` 提供 `t` / `getLanguage` / `setLanguage` / `onChange`，语言状态以 `src/state` 的 `state.language` 为唯一事实来源，`setLanguage` 写 `state.language` + 持久化并广播；
+- `frontend/src/i18n/`：`messages.ts` 为手工维护的唯一消息源（zh/en 各 263 key，勿手改）；`index.ts` 提供 `t` / `getLanguage` / `setLanguage` / `onChange`，语言状态以 `src/state` 的 `state.language` 为唯一事实来源，`setLanguage` 写 `state.language` + 持久化并广播；
   key 全集由 `i18n.test.ts` 锁定。
 - `frontend/src/state/index.ts`：全局状态单对象（`compareSelection` 为 `Set`、`resumeRenderCache` 为 `Map`、`pollTimer`/`callPollTimer` 为定时器句柄），字段按 §2.1 归属表以注释分组标注；
   `state.language` 为前端语言唯一事实来源，被 `frontend/src/i18n/` 消费（`getLanguage` / `setLanguage` / `t` 均读写 `state.language`），行为由 `frontend/tests/unit/state.test.ts` 锁定。

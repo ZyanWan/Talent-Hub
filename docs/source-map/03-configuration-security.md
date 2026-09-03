@@ -69,7 +69,7 @@ pipeline._run / phone_screening._run（置业务终态前）或独立通知重�
 | 文件名清洗 | `repository.py` | 上传、下载、预览、结果 `source_file` |
 | 路径边界 | 仓储、`artifact_preview.py` | 下载、预览、删除、路径逃逸验证 |
 | 上传大小限制 | `main.py`、`speech_to_text.py` | 前端提示、错误码、验证 |
-| Prompt 注入防护 | `pipeline.py`、`phone_screening.py` | Prompt、结构验证、证据守卫 |
+| Prompt 注入防护 | `pipeline.py`、`main.py`、`phone_screening.py` | JD、简历、比较数据、候选人信息、关注项、转写、结构验证、证据守卫 |
 | 原文证据校验 | `pipeline.py`、`phone_screening.py` | 分级、人工展示、验证 |
 | Excel 公式和外链防护 | 构建器、校验器 | 工作簿契约、预览、验证 |
 | XSS 防护 | 前端 React 组件默认转义文本渲染 | Markdown、模型输出、表格预览 |

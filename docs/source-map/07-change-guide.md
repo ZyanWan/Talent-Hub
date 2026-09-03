@@ -15,7 +15,7 @@
 | Job 状态或 stage 语义 | `pipeline.py`、仓储归档限制、`main.py` 冲突处理、前端轮询/按钮/历史、状态验证 |
 | Call 状态或条目状态 | `call_state.py`、`phone_screening.py`、仓储、路由、前端状态标签和轮询、电话验证 |
 | `ScreeningCriteria` | 标准 prompt、校准 API、前端编辑器、Markdown、Excel 标准表、验证 |
-| `CandidateEvaluation` | 评估 prompt、证据守卫（含硬性门槛 `apply_hard_gate_guard`）、排序、持久化结果、Excel（含「硬性门槛判定」列）、前端结果、对比 |
+| `CandidateEvaluation` | 评估 prompt、证据守卫（含硬性门槛 `apply_hard_gate_guard` 与 `bonus_signal_hits`）、排序、持久化结果、Excel（含「硬性门槛判定」列）、前端结果、对比 |
 | 证据维度或核心维度 | `models.py`、prompt、guard、evidence strength、Excel 证据表 |
 | 硬性门槛 `hard_gate` / `HardGateVerdict` | criteria prompt、评估 prompt、`apply_hard_gate_guard()`、Excel 总表列、硬性门槛验证 |
 | 软性素质维度 / `soft_skill_summary` | `soft-skill-framework.md`、整理 prompt、narrative 渲染、前端维度 chips、前端岗位联动关键词映射 `SOFT_SKILL_KEYWORD_MAP`、电话验证 |

@@ -202,6 +202,15 @@ export function callItemStatusLabel(status: string): string {
   return map[status] || status;
 }
 
+function callFieldStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    "已确认": t("callFieldConfirmed"),
+    "含糊": t("callFieldAmbiguous"),
+    "通话未提及": t("callFieldNotMentioned"),
+  };
+  return map[status] || status;
+}
+
 /** 处理环节文案 */
 export function stageLabel(stage: string): string {
   if (state.language === "zh-CN") {
@@ -572,9 +581,13 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
                   <CallPanel title={t("callFieldsPanel")} defaultOpen>
                     {(summary.fields || []).map((field, fieldIndex) => {
                       const key = String(field.key ?? "");
+                      const status = String(field.status ?? "通话未提及");
                       return (
                         <label className="call-field-row" key={key || fieldIndex}>
-                          <span>{String(field.label || key)}</span>
+                          <span className="call-field-heading">
+                            <span>{String(field.label || key)}</span>
+                            <small data-status={status}>{callFieldStatusLabel(status)}</small>
+                          </span>
                           <textarea
                             className="call-field-input"
                             value={fieldValues[key] ?? ""}

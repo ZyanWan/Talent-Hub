@@ -25,6 +25,15 @@ class LLMRequestError(LLMError):
         self.retryable = retryable
 
 
+class LLMResponseError(LLMError):
+    """模型已响应，但输出被服务端截断或过滤，原输入重试无法修复。"""
+
+
+def prompt_json(value: Any) -> str:
+    """把动态数据序列化为 JSON，并转义可伪造文本边界的尖括号。"""
+    return json.dumps(value, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
+
+
 def extract_json_object(content: str) -> dict[str, Any]:
     text = content.strip()
     if text.startswith("```"):
@@ -122,7 +131,13 @@ class OpenAICompatibleClient:
                         retryable=retryable,
                     )
                 body = response.json()
-                content = body["choices"][0]["message"]["content"]
+                choice = body["choices"][0]
+                finish_reason = choice.get("finish_reason")
+                if finish_reason == "length":
+                    raise LLMResponseError("模型输出因长度限制被截断。")
+                if finish_reason == "content_filter":
+                    raise LLMResponseError("模型输出被内容过滤器中止。")
+                content = choice["message"]["content"]
                 if isinstance(content, list):
                     content = "".join(
                         str(item.get("text", "")) if isinstance(item, dict) else str(item)
@@ -134,10 +149,10 @@ class OpenAICompatibleClient:
                     self.settings.model, time.monotonic() - start_time, attempt + 1,
                 )
                 return result
-            except (httpx.TimeoutException, httpx.NetworkError, httpx.ProtocolError, KeyError, ValueError, LLMError) as exc:
+            except LLMRequestError as exc:
                 if self._aborted:
                     raise InterruptedError("用户取消了任务。") from exc
-                if isinstance(exc, LLMRequestError) and not exc.retryable:
+                if not exc.retryable:
                     raise
                 last_error = exc
                 attempt += 1
@@ -145,6 +160,20 @@ class OpenAICompatibleClient:
                     if self._cancelled():
                         raise InterruptedError("用户取消了任务。")
                     time.sleep(min(2 ** attempt + random.random(), 5))
+            except (httpx.TimeoutException, httpx.NetworkError, httpx.ProtocolError) as exc:
+                if self._aborted:
+                    raise InterruptedError("用户取消了任务。") from exc
+                last_error = exc
+                attempt += 1
+                if attempt < attempts:
+                    if self._cancelled():
+                        raise InterruptedError("用户取消了任务。")
+                    time.sleep(min(2 ** attempt + random.random(), 5))
+            except LLMError:
+                # JSON 解析失败由上层携带结构约束纠正，避免重复发送同一提示。
+                raise
+            except (KeyError, ValueError) as exc:
+                raise LLMError("模型服务响应结构无效。") from exc
         logger.warning(
             "chat_json failed model=%s elapsed=%.1fs attempts=%d error=%s",
             self.settings.model, time.monotonic() - start_time, attempts, last_error,

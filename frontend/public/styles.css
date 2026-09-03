@@ -762,6 +762,10 @@ html:has(.preview-backdrop) {
 .call-panel-body { display: grid; gap: 6px; padding: 8px 11px 10px; border-top: 1px solid var(--line); }
 .call-field-row { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 9px; align-items: start; }
 .call-field-row > span { padding-top: 9px; color: var(--ink-soft); font-size: 10px; }
+.call-field-heading { display: grid; gap: 4px; }
+.call-field-heading small { width: fit-content; padding: 2px 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink-faint); font-size: 9px; line-height: 1.2; }
+.call-field-heading small[data-status="已确认"] { border-color: #a7d7bd; color: #25734a; background: #f1faf5; }
+.call-field-heading small[data-status="含糊"] { border-color: #e4c680; color: #80601c; background: #fff9eb; }
 .call-field-input { field-sizing: content; width: 100%; min-width: 0; resize: none; overflow: hidden; padding: 8px 9px; border: 1px solid var(--line-strong); border-radius: 4px; background: #fff; color: var(--ink); outline: none; font-size: 11px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .call-doubt-list { margin: 0; padding-left: 17px; }
 .call-doubt-list li { margin: 3px 0; color: var(--ink-soft); font-size: 10px; line-height: 1.6; }
