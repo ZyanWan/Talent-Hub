@@ -110,6 +110,7 @@ export function App() {
         state.currentJob = job;
         localStorage.setItem("talentHub.lastJob", jobId);
         navigate(jobView(job));
+        forceRender((n) => n + 1);
       } catch (error) {
         showToast((error as Error).message);
         localStorage.removeItem("talentHub.lastJob");

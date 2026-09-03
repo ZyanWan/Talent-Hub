@@ -337,6 +337,9 @@ td:first-child { color: var(--muted); }
 .compare-status-text { color: var(--muted); font-size: 12px; }
 
 /* ===== 弹窗遮罩层 ===== */
+html:has(.preview-backdrop) {
+  overflow: hidden;
+}
 .preview-backdrop {
   position: fixed;
   inset: 0;

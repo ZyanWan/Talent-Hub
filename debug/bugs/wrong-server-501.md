@@ -1,6 +1,8 @@
+[CLOSED]
+
 # Debug Session: wrong-server-501
 
-- Status: [OPEN]
+- Status: [CLOSED]
 - Goal: 定位访问 127.0.0.1:8765 返回 Unsupported method GET 的原因。
 - Constraint: 先只检查运行时进程与端口，不修改业务代码。
 

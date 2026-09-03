@@ -191,6 +191,55 @@ describe("顶栏动作", () => {
     expect(screen.getByRole("heading", { name: "任务记录" })).toBeInTheDocument();
   });
 
+  it("结果页点击另一条历史任务后立即刷新主内容", async () => {
+    const jobA = {
+      id: "job-a",
+      title: "任务 A",
+      status: "completed",
+      completed: 1,
+      total: 1,
+      results: [
+        { source_file: "a.pdf", candidate_name: "候选人 A", conclusion: "A优先约面", blockers: [] },
+      ],
+      errors: [],
+    };
+    const jobB = {
+      id: "job-b",
+      title: "任务 B",
+      status: "completed",
+      completed: 1,
+      total: 1,
+      results: [
+        { source_file: "b.pdf", candidate_name: "候选人 B", conclusion: "B电话确认", blockers: [] },
+      ],
+      errors: [],
+    };
+    localStorage.setItem("talentHub.lastJob", jobA.id);
+    fetchMock.mockImplementation((url: string) => {
+      const value = String(url);
+      if (value === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
+      if (value === `/api/jobs/${jobA.id}`) return Promise.resolve(jsonResponse(jobA));
+      if (value === `/api/jobs/${jobB.id}`) return Promise.resolve(jsonResponse(jobB));
+      if (value.startsWith("/api/jobs?scope=recent")) {
+        return Promise.resolve(jsonResponse({ jobs: [jobB], total: 1 }));
+      }
+      if (value.startsWith("/api/jobs?scope=archived")) {
+        return Promise.resolve(jsonResponse({ jobs: [], total: 0 }));
+      }
+      if (value.startsWith("/api/calls")) return Promise.resolve(jsonResponse({ calls: [], total: 0 }));
+      if (value === "/api/storage") return Promise.resolve(jsonResponse({ job_count: 2, jobs_bytes: 0 }));
+      return Promise.resolve(jsonResponse({}));
+    });
+    render(<App />);
+
+    expect(await screen.findAllByText("候选人 A")).not.toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
+    fireEvent.click(await screen.findByRole("button", { name: /任务 B/ }));
+
+    expect(await screen.findAllByText("候选人 B")).not.toHaveLength(0);
+    expect(screen.queryAllByText("候选人 A")).toHaveLength(0);
+  });
+
   it("设置按钮打开设置弹窗", async () => {
     mockBootstrap(readySettings());
     render(<App />);
