@@ -234,155 +234,175 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     return (
         // 遮罩层：编辑类弹窗不响应遮罩点击（无 onClick 关闭逻辑）
         <div className={visible ? "preview-backdrop is-visible" : "preview-backdrop"}>
-            <section className={visible ? "settings-dialog is-visible" : "settings-dialog"} role="dialog" aria-modal="true" aria-label={t("modelService")}>
+            <section className={visible ? "settings-dialog is-visible" : "settings-dialog"} role="dialog" aria-modal="true" aria-label={t("settingsTitle")}>
                 <form id="settingsForm" ref={formRef} onSubmit={handleSave}>
                     <header className="dialog-header">
-                        <h2>{t("modelService")}</h2>
+                        <h2>{t("settingsTitle")}</h2>
                         <Button variant="icon" className="close-button" aria-label={t("close")} title={t("close")} onClick={onClose}>
                             <svg aria-hidden="true" viewBox="0 0 24 24">
                                 <path d="M6 6l12 12M18 6 6 18" />
                             </svg>
                         </Button>
                     </header>
-                    <div className="form-grid">
-                        <label className="field full">
-                            <span>{t("endpoint")}</span>
-                            <input
-                                name="base_url"
-                                type="url"
-                                required
-                                placeholder="https://api.openai.com/v1"
-                                value={form.base_url}
-                                onChange={(event) => setField("base_url", event.target.value)}
-                            />
-                        </label>
-                        <label className="field full">
-                            <span>{t("apiKey")}</span>
-                            <input
-                                name="api_key"
-                                type="password"
-                                autoComplete="off"
-                                placeholder={t("apiKeyPlaceholder")}
-                                value={form.api_key}
-                                onChange={(event) => setField("api_key", event.target.value)}
-                            />
-                        </label>
-                        <label className="field full">
-                            <span>{t("modelName")}</span>
-                            <input
-                                name="model"
-                                required
-                                placeholder={t("modelPlaceholder")}
-                                value={form.model}
-                                onChange={(event) => setField("model", event.target.value)}
-                            />
-                        </label>
-                        <label className="field">
-                            <span>{t("parallelism")}</span>
-                            <input
-                                name="max_parallel"
-                                type="number"
-                                min={1}
-                                max={12}
-                                value={form.max_parallel}
-                                onChange={(event) => setField("max_parallel", event.target.value)}
-                            />
-                        </label>
-                        <label className="field">
-                            <span>{t("timeout")}</span>
-                            <input
-                                name="request_timeout"
-                                type="number"
-                                min={30}
-                                max={600}
-                                value={form.request_timeout}
-                                onChange={(event) => setField("request_timeout", event.target.value)}
-                            />
-                        </label>
-                        <div className="field full">
-                            <span>{t("ocrPath")}</span>
-                            <input
-                                name="ocr_executable"
-                                aria-label={t("ocrPath")}
-                                placeholder="Tesseract 程序路径（可留空自动检测）"
-                                value={form.ocr_executable}
-                                onChange={(event) => setField("ocr_executable", event.target.value)}
-                            />
-                            <small className={ocrClass}>{ocrText}</small>
-                        </div>
-                        <div className="field full">
-                            <span>{t("asrApiKey")}</span>
-                            <div className="field-action-row">
-                                <input
-                                    name="asr_api_key"
-                                    type="password"
-                                    autoComplete="off"
-                                    aria-label={t("asrApiKey")}
-                                    placeholder={t("apiKeyPlaceholder")}
-                                    value={form.asr_api_key}
-                                    onChange={(event) => setField("asr_api_key", event.target.value)}
-                                />
-                                <Button variant="secondary" onClick={handleClearAsr}>
-                                    {t("clearAsr")}
-                                </Button>
+                    <div className="settings-content">
+                        <section className="settings-section" aria-labelledby="modelServiceHeading">
+                            <h3 id="modelServiceHeading">{t("modelService")}</h3>
+                            <div className="settings-grid settings-model-grid">
+                                <label className="field">
+                                    <span>{t("endpoint")}</span>
+                                    <input
+                                        name="base_url"
+                                        type="url"
+                                        required
+                                        placeholder="https://api.openai.com/v1"
+                                        value={form.base_url}
+                                        onChange={(event) => setField("base_url", event.target.value)}
+                                    />
+                                </label>
+                                <label className="field">
+                                    <span>{t("modelName")}</span>
+                                    <input
+                                        name="model"
+                                        required
+                                        placeholder={t("modelPlaceholder")}
+                                        value={form.model}
+                                        onChange={(event) => setField("model", event.target.value)}
+                                    />
+                                </label>
+                                <label className="field">
+                                    <span>{t("apiKey")}</span>
+                                    <input
+                                        name="api_key"
+                                        type="password"
+                                        autoComplete="off"
+                                        placeholder={t("apiKeyPlaceholder")}
+                                        value={form.api_key}
+                                        onChange={(event) => setField("api_key", event.target.value)}
+                                    />
+                                </label>
+                                <div className="settings-number-grid">
+                                    <label className="field">
+                                        <span>{t("parallelism")}</span>
+                                        <input
+                                            name="max_parallel"
+                                            type="number"
+                                            min={1}
+                                            max={12}
+                                            value={form.max_parallel}
+                                            onChange={(event) => setField("max_parallel", event.target.value)}
+                                        />
+                                    </label>
+                                    <label className="field">
+                                        <span>{t("timeout")}</span>
+                                        <input
+                                            name="request_timeout"
+                                            type="number"
+                                            min={30}
+                                            max={600}
+                                            value={form.request_timeout}
+                                            onChange={(event) => setField("request_timeout", event.target.value)}
+                                        />
+                                    </label>
+                                </div>
                             </div>
-                        </div>
-                        <label className="field full">
-                            <span>{t("feishuWebhook")}</span>
-                            <input
-                                name="feishu_webhook_url"
-                                type="url"
-                                placeholder={t("feishuWebhookPlaceholder")}
-                                value={form.feishu_webhook_url}
-                                onChange={(event) => setField("feishu_webhook_url", event.target.value)}
-                            />
-                        </label>
-                        <div className="field full">
-                            <span>{t("feishuSign")}</span>
-                            <div className="field-action-row">
-                                <input
-                                    name="feishu_sign_secret"
-                                    type="password"
-                                    autoComplete="off"
-                                    aria-label={t("feishuSign")}
-                                    placeholder={t("apiKeyPlaceholder")}
-                                    value={form.feishu_sign_secret}
-                                    onChange={(event) => setField("feishu_sign_secret", event.target.value)}
-                                />
-                                <Button variant="secondary" onClick={handleClearFeishuSign}>
-                                    {t("clearAsr")}
-                                </Button>
+                        </section>
+                        <section className="settings-section" aria-labelledby="localProcessingHeading">
+                            <h3 id="localProcessingHeading">{t("localProcessing")}</h3>
+                            <div className="settings-grid">
+                                <div className="field">
+                                    <span>{t("ocrPath")}</span>
+                                    <input
+                                        name="ocr_executable"
+                                        aria-label={t("ocrPath")}
+                                        placeholder="Tesseract 程序路径（可留空自动检测）"
+                                        value={form.ocr_executable}
+                                        onChange={(event) => setField("ocr_executable", event.target.value)}
+                                    />
+                                    <small className={ocrClass}>{ocrText}</small>
+                                </div>
+                                <div className="field">
+                                    <span>{t("asrApiKey")}</span>
+                                    <div className="field-action-row">
+                                        <input
+                                            name="asr_api_key"
+                                            type="password"
+                                            autoComplete="off"
+                                            aria-label={t("asrApiKey")}
+                                            placeholder={t("apiKeyPlaceholder")}
+                                            value={form.asr_api_key}
+                                            onChange={(event) => setField("asr_api_key", event.target.value)}
+                                        />
+                                        <Button variant="secondary" onClick={handleClearAsr}>
+                                            {t("clearAsr")}
+                                        </Button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div className="toggle-options full">
-                            <label className="toggle-row">
+                        </section>
+                        <section className="settings-section" aria-labelledby="feishuPushHeading">
+                            <h3 id="feishuPushHeading">{t("feishuPushSettings")}</h3>
+                            <div className="settings-grid">
+                                <label className="field">
+                                    <span>{t("feishuWebhook")}</span>
+                                    <input
+                                        name="feishu_webhook_url"
+                                        type="url"
+                                        placeholder={t("feishuWebhookPlaceholder")}
+                                        value={form.feishu_webhook_url}
+                                        onChange={(event) => setField("feishu_webhook_url", event.target.value)}
+                                    />
+                                </label>
+                                <div className="field">
+                                    <span>{t("feishuSign")}</span>
+                                    <div className="field-action-row">
+                                        <input
+                                            name="feishu_sign_secret"
+                                            type="password"
+                                            autoComplete="off"
+                                            aria-label={t("feishuSign")}
+                                            placeholder={t("apiKeyPlaceholder")}
+                                            value={form.feishu_sign_secret}
+                                            onChange={(event) => setField("feishu_sign_secret", event.target.value)}
+                                        />
+                                        <Button variant="secondary" onClick={handleClearFeishuSign}>
+                                            {t("clearAsr")}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                            <label className="toggle-row settings-feishu-toggle">
                                 <input
-                                    name="retain_resume_text"
+                                    name="feishu_push_enabled"
                                     type="checkbox"
-                                    checked={form.retain_resume_text}
-                                    onChange={(event) => setField("retain_resume_text", event.target.checked)}
+                                    checked={form.feishu_push_enabled}
+                                    onChange={(event) => setField("feishu_push_enabled", event.target.checked)}
                                 />
-                                <span>{t("retainText")}</span>
+                                <span>{t("feishuPush")}</span>
                             </label>
-                            <label className="toggle-row">
-                                <input
-                                    name="call_qa_records"
-                                    type="checkbox"
-                                    checked={form.call_qa_records}
-                                    onChange={(event) => setField("call_qa_records", event.target.checked)}
-                                />
-                                <span>{t("callQaRecords")}</span>
-                            </label>
-                        </div>
-                        <label className="toggle-row full">
-                            <input
-                                name="feishu_push_enabled"
-                                type="checkbox"
-                                checked={form.feishu_push_enabled}
-                                onChange={(event) => setField("feishu_push_enabled", event.target.checked)}
-                            />
-                            <span>{t("feishuPush")}</span>
-                        </label>
+                        </section>
+                        <section className="settings-section" aria-labelledby="preferencesHeading">
+                            <h3 id="preferencesHeading">{t("preferences")}</h3>
+                            <div className="toggle-options">
+                                <label className="toggle-row">
+                                    <input
+                                        name="retain_resume_text"
+                                        type="checkbox"
+                                        checked={form.retain_resume_text}
+                                        onChange={(event) => setField("retain_resume_text", event.target.checked)}
+                                    />
+                                    <span>{t("retainText")}</span>
+                                </label>
+                                <label className="toggle-row">
+                                    <input
+                                        name="call_qa_records"
+                                        type="checkbox"
+                                        checked={form.call_qa_records}
+                                        onChange={(event) => setField("call_qa_records", event.target.checked)}
+                                    />
+                                    <span>{t("callQaRecords")}</span>
+                                </label>
+                            </div>
+                        </section>
                     </div>
                     <footer className="dialog-footer">
                         <div

@@ -32,7 +32,7 @@ import { Button } from "../ui/Button";
 import { Progress } from "../ui/Progress";
 
 // ---------------------------------------------------------------------
-// 类型（字段与 GET /api/calls/{id} 响应契约一致，见 SOURCE_MAP §11.3）
+// 类型（字段与 GET /api/calls/{id} 响应契约一致，见 docs/source-map/06-api-runtime.md §11.3）
 // ---------------------------------------------------------------------
 
 /** 电话任务 */

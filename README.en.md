@@ -172,7 +172,7 @@ The Settings dialog (top-right) centrally manages the options below. "Model base
 | Tesseract path | empty | Tesseract executable path for scanned PDFs or image resumes. Not needed for text PDF/DOCX/TXT/Markdown; install the `chi_sim` language pack for Chinese resumes. |
 | Retain parsed text | on | Whether to keep the parsed resume text locally. Turn off to stop storing parsed text and reduce local data retention. |
 | Speech-to-text key | empty | Volcano Engine large-model speech recognition (audio-file fast version) API key; Windows encrypts it with DPAPI, while macOS uses the `TALENT_HUB_ASR_API_KEY` environment variable. |
-| Phone Q&A detail (verbatim transcript) | off | When enabled, phone summarization also produces a full Q&A transcript; off by default to greatly cut processing time. |
+| Generate phone screening details (Q&A transcript) | off | When enabled, phone summarization also produces a full Q&A transcript; off by default to greatly cut processing time. |
 
 ### Speech-to-text (Volcano Engine) setup
 

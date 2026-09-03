@@ -27,7 +27,7 @@ async function useEmptyHistory(page: Page): Promise<void> {
 }
 
 async function openSettingsDialog(page: Page): Promise<void> {
-  const dialog = page.getByRole("dialog", { name: /模型服务|Model service/ });
+  const dialog = page.getByRole("dialog", { name: /应用设置|App settings/ });
   if (!(await dialog.isVisible().catch(() => false))) {
     await page.locator("#openSettingsButton").click();
   }

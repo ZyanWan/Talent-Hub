@@ -82,7 +82,7 @@ describe("字段渲染与初始置空", () => {
     expect(screen.getByLabelText("超时（秒）")).toHaveValue(300);
     expect(screen.getByLabelText("文字识别程序路径")).toHaveValue("C:/tesseract/tesseract.exe");
     expect(screen.getByLabelText("在本机任务目录保留解析后的简历文本")).not.toBeChecked();
-    expect(screen.getByLabelText("电话整理时生成快筛详情（问答原文，较慢）")).toBeChecked();
+    expect(screen.getByLabelText("生成电话快筛详情（问答原文）")).toBeChecked();
     expect(screen.getByLabelText("任务完成后自动推送结果到飞书群")).toBeChecked();
     expect(screen.getByLabelText("飞书推送 · Webhook 地址")).toHaveValue(
       "https://open.feishu.cn/open-apis/bot/v2/hook/abc"
@@ -303,11 +303,11 @@ describe("关闭行为", () => {
 describe("语言切换", () => {
   it("订阅 i18n onChange：切换语言后按钮与标题文案重渲染", () => {
     renderDialog();
-    expect(screen.getByRole("heading", { name: "模型服务" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "应用设置" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存配置" })).toBeInTheDocument();
 
     act(() => setLanguage("en"));
-    expect(screen.getByRole("heading", { name: "Model service" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "App settings" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save settings" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Test model link" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Test Feishu link" })).toBeInTheDocument();
