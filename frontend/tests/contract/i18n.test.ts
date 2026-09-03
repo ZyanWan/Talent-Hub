@@ -12,7 +12,7 @@ describe("B2 新 i18n 消息表一致性", () => {
     const en = new Set(Object.keys(messages.en));
     expect([...zh].filter((k) => !en.has(k))).toEqual([]);
     expect([...en].filter((k) => !zh.has(k))).toEqual([]);
-    expect(zh.size).toBe(254);
+    expect(zh.size).toBe(255);
   });
 
   it("t() 缺失 key 返回 key 并 console.warn（一次）", () => {

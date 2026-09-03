@@ -6,7 +6,7 @@
 // - 音频：GET /api/calls/{call_id}/items/{item_id}/audio（Blob → createObjectURL），
 //   模块级 Map 缓存（audioBlobUrls）复用 + 并发下载合并（audioBlobPending）；
 //   仅切换任务/重置时整体 revoke（releaseAudioBlobs，浮层关闭保留缓存）；
-//   加载失败隐藏播放器并 toast callAudioLoadFail
+//   加载失败隐藏播放器并 toast callAudioLoadFail；0 秒首包解码失败时从 0.064s 重试一次
 // - 播放恢复：React 对同一条目复用 <audio> DOM 节点，轮询重绘不销毁元素，播放
 //   天然持续（captureCallPlayback/restoreCallPlayback：元素被
 //   重建时经 ref 回调捕获快照并暂停，加载完成后按快照补偿已播时长恢复，恢复前
@@ -19,10 +19,12 @@
 //   → 回退 {itemId}.md
 // - 上一个/下一个：按已完成条目顺序切换（端点禁用态）
 // - 非 done 条目（转写中/整理中/failed）在详情内展示进度与错误
+// - 遮罩通过 Portal 挂到 body，避免受电话视图动画的层叠上下文限制
 // - 语言切换重渲染（i18n onChange）
 // =====================================================================
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../api/client";
 import { onChange, t } from "../i18n";
 import { state } from "../state";
@@ -246,9 +248,9 @@ export function stageLabel(stage: string): string {
 // ---------------------------------------------------------------------
 
 /** 可折叠面板（<details> 结构） */
-function CallPanel({ title, children }: { title: string; children: ReactNode }) {
+function CallPanel({ title, children, defaultOpen = false }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
   return (
-    <details className="call-panel">
+    <details className="call-panel" open={defaultOpen}>
       <summary>{title}</summary>
       <div className="call-panel-body">{children}</div>
     </details>
@@ -324,6 +326,14 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
     const audio = audioRef.current;
     if (!audio || audio.src) return;
     let cancelled = false;
+    let retriedInitialDecode = false;
+    const recoverInitialDecode = () => {
+      if (retriedInitialDecode || audio.error?.code !== 3 || audio.currentTime > 0 || !audio.src) return;
+      retriedInitialDecode = true;
+      audio.src = `${audio.src}#t=0.064`;
+      audio.load();
+    };
+    audio.addEventListener("error", recoverInitialDecode);
     void loadCallAudio(callId, String(item.id)).then((url) => {
       if (cancelled) return;
       if (url === null) {
@@ -342,6 +352,7 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
     });
     return () => {
       cancelled = true;
+      audio.removeEventListener("error", recoverInitialDecode);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemKey, done, onToast]);
@@ -476,7 +487,7 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
 
   // 非 done 条目：详情内展示进度/错误（保留浮层展示状态）
   if (!done) {
-    return (
+    return createPortal(
       <div className={entered && !leaving ? "preview-backdrop is-visible" : "preview-backdrop"}>
         <section className={entered && !leaving ? "call-item-detail preview-dialog is-visible" : "call-item-detail preview-dialog"} role="dialog" aria-modal="true" aria-label={String(item.candidate_name || item.audio_file || itemIdStr)}>
           <div className="call-item-detail-head">
@@ -508,11 +519,12 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
             </div>
           </div>
         </section>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
+  return createPortal(
     <div className={entered && !leaving ? "preview-backdrop is-visible" : "preview-backdrop"}>
       <section className={entered && !leaving ? "call-item-detail preview-dialog is-visible" : "call-item-detail preview-dialog"} role="dialog" aria-modal="true" aria-label={String(item.candidate_name || item.audio_file || itemIdStr)}>
         <div className="call-item-detail-head">
@@ -536,105 +548,110 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
         </div>
         <div className="call-item-detail-scroll">
           {/* body 以 itemKey 为 key：切换条目时整体重建（表单初值与音频元素复位） */}
-          <div className="call-item-body" key={itemKey}>
-            <div className="call-candidate-row">
-              <span>{t("callCandidate")}</span>
-              <input
-                className="call-candidate-input"
-                value={candidateName}
-                onChange={(event) => setCandidateName(event.target.value)}
+          <div className="call-item-body call-item-detail-layout" key={itemKey}>
+            <div className="call-item-detail-main">
+              <div className="call-candidate-row">
+                <span>{t("callCandidate")}</span>
+                <input
+                  className="call-candidate-input"
+                  value={candidateName}
+                  onChange={(event) => setCandidateName(event.target.value)}
+                />
+              </div>
+              <audio ref={attachAudio} className="call-audio" controls preload="none" />
+              <span className="call-section-label">{t("callNarrative")}</span>
+              <textarea
+                className="call-narrative"
+                value={narrative}
+                onChange={(event) => setNarrative(event.target.value)}
               />
             </div>
-            <audio ref={attachAudio} className="call-audio" controls preload="none" />
-            <span className="call-section-label">{t("callNarrative")}</span>
-            <textarea
-              className="call-narrative"
-              value={narrative}
-              onChange={(event) => setNarrative(event.target.value)}
-            />
-            <div className="call-panels">
-              {(summary.fields || []).length > 0 && (
-                <CallPanel title={t("callFieldsPanel")}>
-                  {(summary.fields || []).map((field, fieldIndex) => {
-                    const key = String(field.key ?? "");
-                    return (
-                      <label className="call-field-row" key={key || fieldIndex}>
-                        <span>{String(field.label || key)}</span>
-                        <input
-                          className="call-field-input"
-                          value={fieldValues[key] ?? ""}
-                          onChange={(event) =>
-                            setFieldValues((prev) => ({ ...prev, [key]: event.target.value }))
-                          }
-                        />
-                      </label>
-                    );
-                  })}
-                </CallPanel>
-              )}
-              {(summary.doubts || []).length > 0 && (
-                <CallPanel title={t("callDoubtsPanel")}>
-                  <ul className="call-doubt-list">
-                    {(summary.doubts || []).map((doubt, doubtIndex) => (
-                      <li key={doubtIndex}>{doubt}</li>
-                    ))}
-                  </ul>
-                </CallPanel>
-              )}
-              {(summary.facts || []).length > 0 && (
-                <CallPanel title={t("callFactsPanel")}>
-                  {(summary.facts || []).map((fact, factIndex) => {
-                    const hasTime = fact.start_time != null && Number.isFinite(Number(fact.start_time));
-                    return (
-                      <button
-                        type="button"
-                        className="call-fact-row"
-                        key={factIndex}
-                        disabled={!hasTime}
-                        title={hasTime ? t("callFactJump") : t("callFactNoTime")}
-                        onClick={() => hasTime && jumpToTime(fact.start_time)}
-                      >
-                        <span className="call-fact-content">{String(fact.content ?? "")}</span>
-                        <em>
-                          {[
-                            String(fact.speaker ?? ""),
-                            hasTime ? formatFactTime(Number(fact.start_time)) : t("callFactNoTime"),
-                            String(fact.ref ?? ""),
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </em>
-                      </button>
-                    );
-                  })}
-                </CallPanel>
-              )}
-              {summary.transcript ? (
-                <CallPanel title={t("callTranscriptPanel")}>
-                  <pre className="call-transcript">{summary.transcript}</pre>
-                </CallPanel>
-              ) : null}
-              {(summary.guard_warnings || []).length > 0 && (
-                <CallPanel title={t("callGuardPanel", { count: summary.guard_warnings?.length ?? 0 })}>
-                  <ul className="call-doubt-list">
-                    {(summary.guard_warnings || []).map((warning, warningIndex) => (
-                      <li key={warningIndex}>{warning}</li>
-                    ))}
-                  </ul>
-                </CallPanel>
-              )}
-            </div>
-            <div className="call-item-actions">
-              <Button variant="secondary" busy={saving} onClick={() => void handleSave()}>
-                {t("callSave")}
-              </Button>
-              <Button variant="secondary" busy={downloading} onClick={() => void handleDownload()}>
-                {t("callDownload")}
-              </Button>
+            <div className="call-item-detail-side">
+              <div className="call-panels">
+                {(summary.fields || []).length > 0 && (
+                  <CallPanel title={t("callFieldsPanel")} defaultOpen>
+                    {(summary.fields || []).map((field, fieldIndex) => {
+                      const key = String(field.key ?? "");
+                      return (
+                        <label className="call-field-row" key={key || fieldIndex}>
+                          <span>{String(field.label || key)}</span>
+                          <textarea
+                            className="call-field-input"
+                            value={fieldValues[key] ?? ""}
+                            onChange={(event) =>
+                              setFieldValues((prev) => ({ ...prev, [key]: event.target.value }))
+                            }
+                          />
+                        </label>
+                      );
+                    })}
+                  </CallPanel>
+                )}
+                {(summary.doubts || []).length > 0 && (
+                  <CallPanel title={t("callDoubtsPanel")}>
+                    <ul className="call-doubt-list">
+                      {(summary.doubts || []).map((doubt, doubtIndex) => (
+                        <li key={doubtIndex}>{doubt}</li>
+                      ))}
+                    </ul>
+                  </CallPanel>
+                )}
+                {(summary.facts || []).length > 0 && (
+                  <CallPanel title={t("callFactsPanel")}>
+                    {(summary.facts || []).map((fact, factIndex) => {
+                      const hasTime = fact.start_time != null && Number.isFinite(Number(fact.start_time));
+                      return (
+                        <button
+                          type="button"
+                          className="call-fact-row"
+                          key={factIndex}
+                          disabled={!hasTime}
+                          title={hasTime ? t("callFactJump") : t("callFactNoTime")}
+                          onClick={() => hasTime && jumpToTime(fact.start_time)}
+                        >
+                          <span className="call-fact-content">{String(fact.content ?? "")}</span>
+                          <em>
+                            {[
+                              String(fact.speaker ?? ""),
+                              hasTime ? formatFactTime(Number(fact.start_time)) : t("callFactNoTime"),
+                              String(fact.ref ?? ""),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </em>
+                        </button>
+                      );
+                    })}
+                  </CallPanel>
+                )}
+                {summary.transcript ? (
+                  <CallPanel title={t("callTranscriptPanel")}>
+                    <pre className="call-transcript">{summary.transcript}</pre>
+                  </CallPanel>
+                ) : null}
+                {(summary.guard_warnings || []).length > 0 && (
+                  <CallPanel title={t("callGuardPanel", { count: summary.guard_warnings?.length ?? 0 })}>
+                    <ul className="call-doubt-list">
+                      {(summary.guard_warnings || []).map((warning, warningIndex) => (
+                        <li key={warningIndex}>{warning}</li>
+                      ))}
+                    </ul>
+                  </CallPanel>
+                )}
+              </div>
+              <div className="call-item-actions">
+                <Button variant="secondary" busy={saving} onClick={() => void handleSave()}>
+                  {t("callSave")}
+                </Button>
+                <Button variant="secondary" busy={downloading} onClick={() => void handleDownload()}>
+                  {t("callDownload")}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -190,13 +190,14 @@ describe("错误态", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("后端 415：detail 透传为「仅支持 PDF 文件预览」", async () => {
+  it("后端 415：显示预览失败并透传 detail", async () => {
     state.selectedResumes = [pdfFile("a.pdf")];
     fetchMock.mockResolvedValue(jsonResponse({ detail: "仅支持 PDF 文件预览" }, { status: 415 }));
     renderWorkspace();
 
     expect(await screen.findByText("仅支持 PDF 文件预览")).toBeInTheDocument();
-    expect(screen.getByText("此文件格式暂不支持预览")).toBeInTheDocument();
+    expect(screen.getByText("简历预览失败")).toBeInTheDocument();
+    expect(screen.queryByText("此文件格式暂不支持预览")).toBeNull();
   });
 
   it("pypdfium2 缺失（503）：显示服务端错误信息", async () => {
@@ -205,7 +206,7 @@ describe("错误态", () => {
     renderWorkspace();
 
     expect(await screen.findByText("PDF 渲染组件不可用")).toBeInTheDocument();
-    expect(screen.getByText("此文件格式暂不支持预览")).toBeInTheDocument();
+    expect(screen.getByText("简历预览失败")).toBeInTheDocument();
   });
 });
 

@@ -2,7 +2,7 @@
 // 电话条目详情浮层（src/views/CallItemDetail.tsx）渲染与交互测试（jsdom）。
 // 覆盖：详情渲染（narrative/fields/facts/doubts/transcript/guard_warnings）、
 // 音频加载（Blob → createObjectURL、缓存复用与并发下载合并、releaseAudioBlobs
-// revoke、加载失败隐藏播放器 + toast）、轮询重绘播放保持（同一条目复用
+// revoke、加载失败隐藏播放器 + toast、异常首包自动跳过一次）、轮询重绘播放保持（同一条目复用
 // <audio> 元素，currentTime/playing 不变）与状态往返重建后的快照恢复、
 // 编辑保存（PUT body 完整字段与回读）、facts 时间点跳转、Markdown 下载
 // （filename* 解析与 itemId.md 回退）、上一个/下一个导航、编辑类关闭行为
@@ -166,14 +166,15 @@ describe("音频加载与缓存", () => {
       if (url.pathname.endsWith("/items/i1/audio")) return Promise.resolve(audioResponse());
       return Promise.resolve(jsonResponse({ ok: true }));
     });
-    const { onToast } = renderDetail(doneCall(), "i1");
+    const first = renderDetail(doneCall(), "i1");
 
     await waitFor(() => expect((document.querySelector(".call-audio") as HTMLAudioElement).src).toBe("blob:mock-url"));
     expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith("/items/i1/audio"))).toBe(true);
     expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
-    expect(onToast).not.toHaveBeenCalled();
+    expect(first.onToast).not.toHaveBeenCalled();
 
     // 加载失败：隐藏播放器 + callAudioLoadFail toast
+    first.unmount();
     releaseAudioBlobs();
     const fail = vi.fn();
     mockServer((url) => {
@@ -182,9 +183,27 @@ describe("音频加载与缓存", () => {
       }
       return Promise.resolve(jsonResponse({ ok: true }));
     });
-    const second = renderDetail(doneCall(), "i1", { onToast: fail });
-    await waitFor(() => expect(second.container.querySelector(".call-audio")!.getAttribute("hidden")).not.toBeNull());
+    renderDetail(doneCall(), "i1", { onToast: fail });
+    await waitFor(() => expect(document.querySelector(".call-audio")!.getAttribute("hidden")).not.toBeNull());
     expect(fail).toHaveBeenCalledWith("录音加载失败");
+  });
+
+  it("首包解码失败时从首个正常 AAC 包重试一次", async () => {
+    mockServer((url) => {
+      if (url.pathname.endsWith("/items/i1/audio")) return Promise.resolve(audioResponse());
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+    renderDetail(doneCall(), "i1");
+    const audio = document.querySelector(".call-audio") as HTMLAudioElement;
+    await waitFor(() => expect(audio.src).toBe("blob:mock-url"));
+    const load = vi.spyOn(audio, "load").mockImplementation(() => { });
+    Object.defineProperty(audio, "error", { value: { code: 3 }, configurable: true });
+
+    fireEvent.error(audio);
+    fireEvent.error(audio);
+
+    expect(audio.src).toBe("blob:mock-url#t=0.064");
+    expect(load).toHaveBeenCalledTimes(1);
   });
 
   it("缓存复用：关闭重开不重复请求；releaseAudioBlobs 统一 revoke 后重新下载", async () => {
@@ -434,9 +453,11 @@ describe("关闭行为", () => {
       if (url.pathname.endsWith("/items/i1/audio")) return Promise.resolve(audioResponse());
       return Promise.resolve(jsonResponse({ ok: true }));
     });
-    const { onClose, container } = renderDetail(doneCall(), "i1");
+    const { onClose } = renderDetail(doneCall(), "i1");
+    const backdrop = document.querySelector(".preview-backdrop")!;
 
-    fireEvent.click(container.querySelector(".preview-backdrop")!);
+    expect(backdrop.parentElement).toBe(document.body);
+    fireEvent.click(backdrop);
     expect(onClose).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "返回列表" }));

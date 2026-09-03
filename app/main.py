@@ -38,6 +38,7 @@ MAX_JOB_BYTES = 1024 * 1024 * 1024
 
 PDF_PREVIEW_SCALE = 3.0
 PDF_PREVIEW_MAX_PAGES = 50
+PDF_PREVIEW_RENDER_LOCK = threading.Lock()
 
 
 # ---- AI 横向对比 ----
@@ -175,43 +176,46 @@ def validated_compare_call(
 
 def _render_pdf_preview(raw: bytes, scale: float) -> tuple[int, list[dict]]:
     """在后台线程中渲染 PDF 预览页，避免阻塞事件循环。"""
-    try:
-        import pypdfium2 as pdfium
-    except ImportError:
-        raise HTTPException(status_code=503, detail="PDF 渲染组件不可用")
-    try:
-        document = pdfium.PdfDocument(raw)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"无法解析 PDF：{type(exc).__name__}") from exc
-    try:
-        page_count = len(document)
-        if page_count > PDF_PREVIEW_MAX_PAGES:
-            raise HTTPException(
-                status_code=422,
-                detail=f"PDF 共 {page_count} 页，超过 {PDF_PREVIEW_MAX_PAGES} 页预览上限",
-            )
-        pages: list[dict] = []
-        for index in range(page_count):
-            page = document[index]
-            try:
-                bitmap = page.render(scale=scale) # type: ignore
+    with PDF_PREVIEW_RENDER_LOCK:
+        try:
+            import pypdfium2 as pdfium
+        except ImportError:
+            raise HTTPException(status_code=503, detail="PDF 渲染组件不可用")
+        try:
+            document = pdfium.PdfDocument(raw)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"无法解析 PDF：{type(exc).__name__}") from exc
+        try:
+            page_count = len(document)
+            if page_count > PDF_PREVIEW_MAX_PAGES:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"PDF 共 {page_count} 页，超过 {PDF_PREVIEW_MAX_PAGES} 页预览上限",
+                )
+            pages: list[dict] = []
+            for index in range(page_count):
+                page = document[index]
                 try:
-                    image = bitmap.to_pil()
+                    bitmap = page.render(scale=scale) # type: ignore
                     try:
-                        buffer = io.BytesIO()
-                        image.save(buffer, format="PNG")
-                        encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-                        pages.append({"index": index + 1, "data": f"data:image/png;base64,{encoded}"})
+                        image = bitmap.to_pil()
+                        try:
+                            buffer = io.BytesIO()
+                            try:
+                                image.save(buffer, format="PNG")
+                                encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+                                pages.append({"index": index + 1, "data": f"data:image/png;base64,{encoded}"})
+                            finally:
+                                buffer.close()
+                        finally:
+                            image.close()
                     finally:
-                        buffer.close()
+                        bitmap.close()
                 finally:
-                    image.close()
-            finally:
-                bitmap.close()
-                page.close()
-    finally:
-        document.close()
-    return page_count, pages
+                    page.close()
+        finally:
+            document.close()
+        return page_count, pages
 
 
 class SettingsInput(BaseModel):

@@ -13,5 +13,8 @@
 
 | 状态 | 问题 | 目标 |
 | --- | --- | --- |
+| CLOSED | [call-detail-backdrop-stacking](./call-detail-backdrop-stacking.md) | 定位电话条目详情遮罩无法覆盖顶栏语言按钮的问题 |
+| CLOSED | [resume-preview-pdfium-race](./resume-preview-pdfium-race.md) | 定位有效 PDF 简历因 PDFium 并发访问而无法预览的问题 |
 | CLOSED | [phone-screening-poll-race](./phone-screening-poll-race.md) | 记录电话确认页处理中轮询重绘打断已完成录音详情的问题 |
+| CLOSED | [call-audio-invalid-first-packet](./call-audio-invalid-first-packet.md) | 定位电话录音首个 AAC 包异常导致浏览器无法播放的问题 |
 | OPEN | [wrong-server-501](./wrong-server-501.md) | 定位访问 127.0.0.1:8765 返回 Unsupported method GET 的原因 |
