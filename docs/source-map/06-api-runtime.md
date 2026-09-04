@@ -2,7 +2,7 @@
 
 > 前后端 API、轮询、并发、持久化和取消隔离。
 >
-> 返回 [SOURCE_MAP.md](../../SOURCE_MAP.md) 选择其他主题。
+> 返回 [SOURCE_MAP.md](../SOURCE_MAP.md) 选择其他主题。
 
 ## 11. 前后端 API 契约
 

@@ -2,7 +2,7 @@
 
 > 项目边界、运行拓扑、启动链路和单一事实来源。
 >
-> 返回 [SOURCE_MAP.md](../../SOURCE_MAP.md) 选择其他主题。
+> 返回 [SOURCE_MAP.md](../SOURCE_MAP.md) 选择其他主题。
 
 ## 1. 项目定位与边界
 

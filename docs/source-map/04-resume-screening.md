@@ -2,7 +2,7 @@
 
 > 简历任务的数据流、状态机、证据守卫和 Excel 契约。
 >
-> 返回 [SOURCE_MAP.md](../../SOURCE_MAP.md) 选择其他主题。
+> 返回 [SOURCE_MAP.md](../SOURCE_MAP.md) 选择其他主题。
 
 ## 6. 简历筛选端到端数据流
 

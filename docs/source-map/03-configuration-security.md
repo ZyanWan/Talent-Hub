@@ -2,7 +2,7 @@
 
 > 配置读写、敏感信息保护、外部服务设置和安全联查项。
 >
-> 返回 [SOURCE_MAP.md](../../SOURCE_MAP.md) 选择其他主题。
+> 返回 [SOURCE_MAP.md](../SOURCE_MAP.md) 选择其他主题。
 
 ## 5. 配置与密钥数据流
 

@@ -2,7 +2,7 @@
 
 > 后端、前端、运行脚本和 UI 组件的职责与依赖。
 >
-> 返回 [SOURCE_MAP.md](../../SOURCE_MAP.md) 选择其他主题。
+> 返回 [SOURCE_MAP.md](../SOURCE_MAP.md) 选择其他主题。
 
 ## 2. 代码地图
 
@@ -33,8 +33,8 @@
 | `packaging/talent_hub_macos.spec` | macOS PyInstaller `.app` bundle 配置 | macOS 发布产物、资源收集、启动入口 |
 | `scripts/build_macos.sh` | macOS PyInstaller 构建、许可证、烟测和版本化 zip 输出 | 版本、发布目录、macOS packaging 文件 |
 | `scripts/verify_macos_release.sh` | macOS 可执行文件启动、临时数据目录和首页烟测 | `main.py` 参数、`/health`、首页结构 |
-| `scripts/extract_model_texts.py` | 从实际 Prompt 构造函数生成完整模型输入文本清单 | `MODEL_INPUT_TEXTS.md`、Prompt 工程审阅 |
-| `MODEL_INPUT_TEXTS.md` | 生产与调试链路发送给模型的静态文本、动态边界、重试指令和请求信封快照 | Prompt 工程审阅、变更核对 |
+| `scripts/extract_model_texts.py` | 从实际 Prompt 构造函数生成完整模型输入文本清单 | `docs/MODEL_INPUT_TEXTS.md`、Prompt 工程审阅 |
+| `docs/MODEL_INPUT_TEXTS.md` | 生产与调试链路发送给模型的静态文本、动态边界、重试指令和请求信封快照 | Prompt 工程审阅、变更核对 |
 | `tests/test_resume_preview.py` | PDF 预览并发串行化与失败清理回归验证 | `app/main.py` 的 PDFium 渲染边界 |
 | `tests/test_prompt_contracts.py` | 分级状态机、事实引用、动态边界、横向对比和模型终止原因回归验证 | `models.py`、`pipeline.py`、`phone_screening.py`、`main.py`、`llm.py` |
 | `debug/` | 非生产链路的调试和实验辅助目录 | Prompt 对比、问题复现、维护记录 |

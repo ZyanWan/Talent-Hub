@@ -2,7 +2,7 @@
 
 > 电话任务、ASR、摘要、事实守卫、人工编辑和取消语义。
 >
-> 返回 [SOURCE_MAP.md](../../SOURCE_MAP.md) 选择其他主题。
+> 返回 [SOURCE_MAP.md](../SOURCE_MAP.md) 选择其他主题。
 
 ## 9. 电话确认端到端数据流
 
