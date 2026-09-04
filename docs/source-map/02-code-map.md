@@ -23,7 +23,7 @@
 | `app/runtime/workbook_contract.py` | 五表名称、表头、枚举和格式契约 | 构建器、校验器、验证、业务输出 |
 | `app/runtime/call_state.py` | 电话条目状态机和中断收敛 | `phone_screening.py`、电话重试和取消 |
 | `app/runtime/speech_to_text.py` | 火山 ASR 请求、音频输入校验、请求参数和转写渲染 | 电话处理器、ASR 验证 |
-| `app/runtime/phone_screening.py` | 电话处理、高级招聘专员 prompt、基础结构校验、三层 narrative 渲染（客观记录/综合招聘判断/可选快筛详情）、事实录音定位与 Markdown | 电话任务状态、摘要文件、前端电话详情 |
+| `app/runtime/phone_screening.py` | 电话处理、高级招聘专员 prompt、基础结构校验、三层 narrative 渲染（客观记录/软性素质评价/可选快筛详情）、事实录音定位与 Markdown | 电话任务状态、摘要文件、前端电话详情 |
 | `app/resources/references/` | 运行时参考规则库：证据规则、Excel/PDF 规则和招聘判断参考 | `pipeline.py`、`phone_screening.py`、Prompt |
 | `frontend/src/**` | React+TS 前端：App.tsx（外壳/顶栏/启动）、views/（筛选/电话/简历工作台）、ui/（弹窗与基础组件）、api/client.ts（唯一 API client）、i18n/（messages.ts 唯一消息源）、router/、state/、customSelect.ts | 后端路由、JSON 字段、状态枚举、契约与单元测试 |
 | `launcher.py` | PyInstaller 薄启动入口 | `app.main.main`、打包配置 |

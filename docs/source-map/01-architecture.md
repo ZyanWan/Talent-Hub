@@ -9,7 +9,7 @@
 Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端为 React + TypeScript（Vite 构建，构建产物 `frontend/dist` 由 FastAPI 托管）。它包含两条主要业务链路：
 
 1. 简历筛选：JD、简历上传、标准生成与人工校准、候选人评估、证据校验、硬性门槛程序化过滤、A/B/C 分级、Excel 交付和候选人横向对比。
-2. 电话确认：录音上传、火山引擎 ASR、AI 单次结构化整理（含动态 Remark、软性 8 维度框架概述和可选快筛问答）、三层整理记录 narrative、事实引用守卫、人工编辑和 Markdown 下载。软性概述由 Prompt 约束并由 HR 人工复核，不经过独立的程序化引用守卫。
+2. 电话确认：录音上传、火山引擎 ASR、AI 单次结构化整理（含动态 Remark、软性素质评价和可选快筛问答）、三层整理记录 narrative、事实引用守卫、人工编辑和 Markdown 下载。软性素质评价由 Prompt 约束并由 HR 人工复核，不经过独立的程序化引用守卫。
 
 系统边界：
 

@@ -1,12 +1,12 @@
 # 电话确认链路
 
-> 电话任务、ASR、摘要、招聘判断、人工编辑和取消语义。
+> 电话任务、ASR、摘要、软性素质评价、人工编辑和取消语义。
 >
 > 返回 [SOURCE_MAP.md](../SOURCE_MAP.md) 选择其他主题。
 
 ## 9. 电话确认端到端数据流
 
-电话链路由一次模型调用生成完整 `CallSummary`。程序只校验 JSON、动态记录章节和字段结构；结构失败时最多纠正重试一次，不对模型返回的客观记录、综合招聘判断和字段状态做语义裁决或删改。`facts[].ref` 只用于尽可能定位录音时间，不影响最终 `narrative`。人工编辑是最终校正边界。`CallRepository` 复用 `repository.py` 的 `JsonStore`，因此电话任务的 JSON 保存、归档、恢复、删除和锁语义与岗位任务共享同一底层仓储规则。
+电话链路由一次模型调用生成完整 `CallSummary`。程序只校验 JSON、动态记录章节和字段结构；结构失败时最多纠正重试一次，不对模型返回的客观记录、软性素质评价和字段状态做语义裁决或删改。`facts[].ref` 只用于尽可能定位录音时间，不影响最终 `narrative`。人工编辑是最终校正边界。`CallRepository` 复用 `repository.py` 的 `JsonStore`，因此电话任务的 JSON 保存、归档、恢复、删除和锁语义与岗位任务共享同一底层仓储规则。
 
 ### 9.1 创建和上传
 
@@ -49,9 +49,9 @@ POST /api/calls/<id>/process
      2. speech_to_text.transcribe_audio()
      3. render_transcript() → transcripts/<item_id>.txt
      4. transcribing → summarizing
-     5. AI 生成 CallSummary：以高级招聘专员的第一工作视角生成客观记录和综合招聘判断；候选人信息、软性关注项和转写放入明确的不可信数据边界；转写超过 160,000 字符时保留首 120,000 与末 40,000 字符并显式标注省略；快筛问答按 `call_qa_records` 开关生成
+     5. AI 生成 CallSummary：以高级招聘专员的第一工作视角生成客观记录和软性素质评价；候选人信息、软性关注项和转写放入明确的不可信数据边界，关注项（`soft_skill_focus`）作为评估参考提示注入（非强制清单，通话确实未涉及的维度可不输出）；转写超过 160,000 字符时保留首 120,000 与末 40,000 字符并显式标注省略；快筛问答按 `call_qa_records` 开关生成
      6. validate_call_structure() 检查动态章节和字段是否完整；失败时纠正重试一次
-     7. render_remark_narrative() 完整渲染模型返回的客观记录、综合招聘判断与可选快筛详情
+     7. render_remark_narrative() 完整渲染模型返回的客观记录、软性素质评价与可选快筛详情
      8. attach_fact_timestamps() 按 fact.ref 尝试定位录音时间区间，写入 facts[].start_time/end_time；定位失败不改变模型内容
      9. summaries/<item_id>.json 和 .md
     10. record.json 中对应条目写入 summary
@@ -73,15 +73,15 @@ POST /api/calls/<id>/process
 ```text
 candidate_name, call_date,
 remark_sections[]     动态业务章节（title, bullets[] 字符串）
-soft_skill_summary[]  可选综合招聘判断字符串；信息不足时为空，判断维度不限
-soft_skill_summary_title  招聘判断章节标题（可选）
+soft_skill_summary[]  可选软性素质评价字符串；信息不足时为空，优先参考关注的软性素质维度，维度不限
+soft_skill_summary_title  软性素质评价章节标题（可选）
 qa_records[]          快筛详情通篇问答（question, answer；按设置开关生成，默认关闭；关闭时程序侧解析后强制清空，模型自行输出也不保留）
 narrative             由上述结构渲染的统一可编辑文本，用于展示和 Markdown 下载
 fields[].{key,label,value,status,note}, facts[], doubts[],
 transcript（转写原文与时间戳定位基准）
 ```
 
-`narrative` 由 `render_remark_narrative()` 完整渲染三层结构：① 客观记录章节 → ② 分点式综合招聘判断 → ③ 快筛详情（通篇问答原文，仅开关开启且有内容时渲染）。人工编辑 `narrative` 后不反向解析回结构化字段。
+`narrative` 由 `render_remark_narrative()` 完整渲染三层结构：① 客观记录章节 → ② 分点式软性素质评价 → ③ 快筛详情（通篇问答原文，仅开关开启且有内容时渲染）。人工编辑 `narrative` 后不反向解析回结构化字段。
 
 首轮整理必须至少满足：
 
@@ -89,13 +89,13 @@ transcript（转写原文与时间戳定位基准）
 - `fields` 非空；
 - 渲染后的 `narrative` 非空。
 
-综合招聘判断与快筛详情（`qa_records`）不是必填项：没有可靠通话信息时可以为空。每条招聘判断是一句完整字符串，不限定维度；提示词要求结论详写实际工作价值或潜在风险，行为依据简写。
+软性素质评价与快筛详情（`qa_records`）不是必填项：没有可靠通话信息时可以为空。每条评价是一句完整字符串，优先参考关注的软性素质维度，维度不限；提示词要求结论详写实际工作价值或潜在风险，行为依据简写。
 
 首轮若返回空壳，视为结构失败并携带错误重试一次；连续失败则该条目进入 failed，不得以空摘要标记 done。
 
 ### 9.4 基础结构校验与录音定位
 
-`validate_call_structure()` 只拒绝无法形成可用结果的空壳：动态章节为空、章节标题或要点为空、字段列表为空。它不分析文本语义，不删除正文、招聘判断或问答，也不改写字段状态。
+`validate_call_structure()` 只拒绝无法形成可用结果的空壳：动态章节为空、章节标题或要点为空、字段列表为空。它不分析文本语义，不删除正文、软性素质评价或问答，也不改写字段状态。
 
 `facts[]` 是录音回放的辅助数据。`attach_fact_timestamps()` 使用 `ref` 在带时间戳的转写和原始 utterances 中尝试定位；定位成功时写入 `start_time/end_time`，失败时保持为空，前端将该事实显示为不可点击。事实引用是否定位成功不影响整理内容和任务完成状态。
 

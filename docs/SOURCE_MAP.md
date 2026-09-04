@@ -14,7 +14,7 @@
 | 后端模块、前端组件、模块职责 | [代码地图](source-map/02-code-map.md) | 对应业务专题 |
 | 设置、密钥、飞书或安全边界 | [配置、密钥与安全边界](source-map/03-configuration-security.md) | [API 与运行时约束](source-map/06-api-runtime.md) |
 | 简历筛选、证据、分级或 Excel | [简历筛选链路](source-map/04-resume-screening.md) | [变更影响指南](source-map/07-change-guide.md) |
-| 电话整理、ASR、招聘判断、多语言任务标题、录音定位或人工编辑 | [电话确认链路](source-map/05-phone-screening.md) | [API 与运行时约束](source-map/06-api-runtime.md) |
+| 电话整理、ASR、软性素质评价、多语言任务标题、录音定位或人工编辑 | [电话确认链路](source-map/05-phone-screening.md) | [API 与运行时约束](source-map/06-api-runtime.md) |
 | API 字段、轮询、并发、取消或持久化 | [API 与运行时约束](source-map/06-api-runtime.md) | 对应业务专题 |
 | 任意跨模块改动或修改前影响分析 | [变更影响指南](source-map/07-change-guide.md) | 对应业务专题 |
 

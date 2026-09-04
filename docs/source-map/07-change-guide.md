@@ -18,7 +18,7 @@
 | `CandidateEvaluation` | 评估 prompt、证据守卫（含硬性门槛 `apply_hard_gate_guard` 与 `bonus_signal_hits`）、排序、持久化结果、Excel（含「硬性门槛判定」列）、前端结果、对比 |
 | 证据维度或核心维度 | `models.py`、prompt、guard、evidence strength、Excel 证据表 |
 | 硬性门槛 `hard_gate` / `HardGateVerdict` | criteria prompt、评估 prompt、`apply_hard_gate_guard()`、Excel 总表列、硬性门槛验证 |
-| 综合招聘判断 / `soft_skill_summary` | `soft-skill-framework.md`、整理 prompt、narrative 渲染、前端维度 chips、前端岗位联动关键词映射 `SOFT_SKILL_KEYWORD_MAP`、电话验证 |
+| 软性素质评价 / `soft_skill_summary` | `soft-skill-framework.md`、整理 prompt、narrative 渲染、前端维度 chips、前端岗位联动关键词映射 `SOFT_SKILL_KEYWORD_MAP`、电话验证 |
 | 电话字段确定性 / `fields[].status` | 整理 prompt、`CallField`、电话详情字段徽标、API 契约、电话验证 |
 | A/B/C 枚举 | 模型、guard、排序、工作簿契约、校验器、前端精确匹配、AI 对比、验证 |
 | `source_file` 语义 | 上传命名、续跑、追加简历、结果预览、AI 对比、缓存、前端选择键、验证 |
@@ -74,8 +74,8 @@
 - AI 生成筛选标准后必须由 HR 校准。
 - 模型候选人评估必须经过原文证据守卫。
 - 硬性门槛判定由程序强制：任一明确不满足直接 C，模型不得放宽；存在 unknown 一律降 B 转电话确认。
-- 电话摘要只经过 JSON 和必填结构校验，程序完整保留模型返回的客观记录、综合招聘判断与快筛详情。
-- 电话事实 `ref` 只用于尝试定位录音时间，不参与正文、招聘判断和字段状态裁决。
+- 电话摘要只经过 JSON 和必填结构校验，程序完整保留模型返回的客观记录、软性素质评价与快筛详情。
+- 电话事实 `ref` 只用于尝试定位录音时间，不参与正文、软性素质评价和字段状态裁决。
 - 电话整理结果允许 HR 修改。
 - Excel 校验只保证结构、安全和跨表一致性，不宣称业务判断必然正确。
 

@@ -87,8 +87,8 @@ Currently supported modules — more will follow:
 | Capability | Description |
 | --- | --- |
 | **Batch transcription** | Upload multiple recordings (m4a / wav / mp3 / ogg / opus) powered by Volcano Engine ASR. |
-| **AI summarization** | Uses a senior-recruiter perspective to produce complete structured notes, open-ended hiring judgments, and optional Q&A detail (off by default). |
-| **Complete result delivery** | Code validates JSON and required structure only. It does not delete model-produced notes or judgments or change field status based on citations; citations are used only for audio positioning. |
+| **AI summarization** | Uses a senior-recruiter perspective to produce complete structured notes, soft-skill evaluations that prioritize the selected focus dimensions without being limited to them, and optional Q&A detail (off by default). |
+| **Complete result delivery** | Code validates JSON and required structure only. It does not delete model-produced notes or soft-skill evaluations or change field status based on citations; citations are used only for audio positioning. |
 | **Manual review & download** | Date-based default task titles follow the interface language while manual titles remain unchanged; after per-candidate review, export a Markdown record for each candidate. |
 
 ### Feishu push
