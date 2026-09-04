@@ -1,29 +1,33 @@
-[CLOSED]
+# 错误服务占用端口返回 501
 
-# Debug Session: wrong-server-501
+状态：`[CLOSED]`
 
-- Status: [CLOSED]
-- Goal: 定位访问 127.0.0.1:8765 返回 Unsupported method GET 的原因。
-- Constraint: 先只检查运行时进程与端口，不修改业务代码。
+## 目标
 
-## Hypotheses
+定位访问 127.0.0.1:8765 返回 Unsupported method GET 的原因。
+
+## 约束
+
+先只检查运行时进程与端口，不修改业务代码。
+
+## 假设
 
 1. 8765 被遗留的模拟 HTTP 服务占用。
 2. 正式项目因端口占用没有成功启动。
 3. 浏览器当前访问的是模拟服务而不是 FastAPI。
 4. 停止错误进程并重新启动项目后可恢复。
 
-## Evidence
+## 证据
 
 - 8765 原监听进程 PID 5640 的命令行为本地 401 模拟服务，只实现了 POST。
 - 访问首页返回 Python `BaseHTTPRequestHandler` 的 HTTP 501，而不是 FastAPI。
 - 停止模拟服务并重启项目后，首页返回 HTTP 200，Server 为 `uvicorn`，HTML 包含应用标题。
 
-## Conclusion
+## 根因
 
 根因是上一次模型错误测试遗留的模拟服务占用了 8765，导致正式项目未能绑定该端口。当前正式项目已重新启动并保持运行。
 
-## Post-fix Verification
+## 修复后验证
 
 - 正式服务进程仍在运行，命令行为 `python -X utf8 -m app.main --no-browser`。
 - 8765 由正式项目监听。
