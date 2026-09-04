@@ -39,6 +39,7 @@ import { Progress } from "../ui/Progress";
 export type CallTask = Record<string, unknown> & {
   id?: unknown;
   title?: string;
+  title_mode?: "auto" | "custom";
   job_title?: string;
   job_id?: string;
   soft_skill_focus?: string;

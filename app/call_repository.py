@@ -17,18 +17,24 @@ class CallRepository(JsonStore):
         super().__init__(root, subdir="calls", metadata_name="record.json", temp_prefix="record-")
 
     def create(self, title: str = "", job_title: str = "", soft_skill_focus: str = "",
-               job_id: str = "", soft_skill_dimensions: list[str] | None = None) -> dict:
+               job_id: str = "", soft_skill_dimensions: list[str] | None = None,
+               title_mode: str | None = None) -> dict:
         return super().create(
             title=title, job_title=job_title, soft_skill_focus=soft_skill_focus,
             job_id=job_id, soft_skill_dimensions=soft_skill_dimensions or [],
+            title_mode=title_mode,
         )
 
     def _new_record(self, record_id: str, now: str, title: str = "", job_title: str = "",
-                    soft_skill_focus: str = "", job_id: str = "",
-                    soft_skill_dimensions: list[str] | None = None) -> dict:
+                     soft_skill_focus: str = "", job_id: str = "",
+                     soft_skill_dimensions: list[str] | None = None,
+                     title_mode: str | None = None) -> dict:
+        clean_title = title.strip()
+        resolved_title_mode = title_mode or ("custom" if clean_title else "auto")
         return {
             "id": record_id,
-            "title": title.strip() or "电话确认任务",
+            "title": clean_title or f"{now[:10]} 电话确认",
+            "title_mode": resolved_title_mode,
             "job_title": job_title.strip(),
             "job_id": job_id.strip(),
             "soft_skill_focus": soft_skill_focus.strip(),

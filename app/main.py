@@ -14,6 +14,7 @@ import urllib.request
 import webbrowser
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Literal
 
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -245,6 +246,7 @@ class JobBriefInput(BaseModel):
 
 class CallInput(BaseModel):
     title: str = Field(default="", max_length=200)
+    title_mode: Literal["auto", "custom"] | None = None
     job_title: str = Field(default="", max_length=200)
     job_id: str = Field(default="", max_length=100)
     soft_skill_focus: str = Field(default="", max_length=2000)
@@ -281,6 +283,7 @@ def public_call_summary(record: dict) -> dict:
     return {
         "id": record.get("id"),
         "title": record.get("title"),
+        "title_mode": record.get("title_mode"),
         "job_title": record.get("job_title"),
         "status": record.get("status"),
         "stage": record.get("stage"),
@@ -628,7 +631,7 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
     async def create_call(payload: CallInput):
         return public_call(call_repository.create(
             payload.title, payload.job_title, payload.soft_skill_focus,
-            payload.job_id, payload.soft_skill_dimensions,
+            payload.job_id, payload.soft_skill_dimensions, payload.title_mode,
         ))
 
     @app.put("/api/calls/{call_id}/audio")

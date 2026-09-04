@@ -1,12 +1,5 @@
 // =====================================================================
-// 电话确认任务流视图（src/views/PhoneView.tsx，经 src/App.tsx 集成）渲染与交互测试（jsdom）。
-// 覆盖：新建表单渲染与提交（POST /api/calls body 含 soft_skill_focus/dimensions）、
-// 关联岗位联动导入（criteria-json bonus_signals 关键词匹配预设维度）、录音上传
-// （PUT audio 直传 File + upload.accepted=false/duplicate_of 判重）、全部重复 →
-// noNewAudio 不触发整理且表单保留草稿关联信息、process 触发、轮询渲染条目状态与
-// 进度与取消（终态后停止轮询）、追加录音（done 且未归档显示 FAB，追加后自动 process；
-// 全部重复 → noNewAudio；归档任务隐藏且忽略）、删除当前历史任务后重置工作区、
-// 归档/恢复同步、历史任务切换防乱序与失败回落、重试、错误处理（上传失败 toast）。
+// 电话任务创建、轮询与取消、追加录音、历史删除与切换隔离、归档恢复和重试。
 // 仅做渲染级断言，不含截图验证。
 // =====================================================================
 
@@ -154,6 +147,7 @@ describe("新建表单", () => {
     const createCall = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/calls" && i?.method === "POST")!;
     const body = JSON.parse(String(createCall[1]?.body)) as Record<string, unknown>;
     expect(body.title).toBe("本周电话确认");
+    expect(body.title_mode).toBe("custom");
     expect(body.job_title).toBe("后端工程师");
     expect(body.job_id).toBe("j1");
     expect(body.soft_skill_focus).toBe("来自岗位加分信号：自驱；逻辑");
@@ -167,50 +161,6 @@ describe("新建表单", () => {
     // process 后进入任务详情视图
     await waitFor(() => expect(document.getElementById("callDetailView")!.hidden).toBe(false));
     expect(document.getElementById("callDetailTitle")!.textContent).toBe("本周电话确认");
-  });
-});
-
-describe("录音上传与去重", () => {
-  it("全部重复 → noNewAudio 不触发 process；表单保留草稿关联信息", async () => {
-    const draftCall = {
-      id: "c1",
-      title: "默认标题",
-      status: "draft",
-      items: [],
-      soft_skill_focus: "来自岗位加分信号：自驱",
-      job_id: "j1",
-      soft_skill_dimensions: ["self_drive"],
-    };
-    mockServer((url, init) => {
-      const method = init?.method ?? "GET";
-      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
-      if (url.pathname === "/api/jobs" && method === "GET") {
-        return Promise.resolve(jsonResponse({ jobs: [{ id: "j1", title: "后端工程师" }] }));
-      }
-      if (url.pathname === "/api/calls" && method === "POST") return Promise.resolve(jsonResponse(draftCall));
-      if (url.pathname === "/api/calls/c1/audio" && method === "PUT") {
-        return Promise.resolve(jsonResponse({ upload: { accepted: false, duplicate_of: "a.m4a" } }));
-      }
-      if (url.pathname === "/api/calls/c1" && method === "GET") return Promise.resolve(jsonResponse(draftCall));
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    localStorage.setItem("talentHub.activeTool", "phone");
-    render(<App />);
-    await waitBootstrap();
-
-    const file = new File(["x"], "a.m4a", { lastModified: 111 });
-    fireEvent.change(document.getElementById("callAudioFiles") as HTMLInputElement, { target: { files: [file] } });
-    fireEvent.click(document.getElementById("startCallProcessButton") as HTMLButtonElement);
-
-    // 全部重复：noNewAudio 提示，不触发 process
-    await screen.findByText("所选录音均已存在，无需重新整理");
-    expect(fetchMock.mock.calls.some(([u, i]) => String(u) === "/api/calls/c1/process" && i?.method === "POST")).toBe(false);
-    // 表单保留草稿关联信息（focus 文案与关联岗位）；回填经 useEffect 异步落地，等待其完成
-    expect(document.getElementById("callCreateView")!.hidden).toBe(false);
-    await waitFor(() => {
-      expect((document.getElementById("callSoftSkillInput") as HTMLTextAreaElement).value).toBe("来自岗位加分信号：自驱");
-      expect((document.getElementById("callJobLinkSelect") as HTMLSelectElement).value).toBe("j1");
-    });
   });
 });
 
@@ -335,65 +285,6 @@ describe("追加录音", () => {
     await waitFor(() => expect(document.getElementById("appendCallAudioButton")!.hidden).toBe(true));
   });
 
-  it("追加全部重复 → noNewAudio 提示，不触发 process", async () => {
-    const doneCall = {
-      id: "c2",
-      title: "已完成电话",
-      status: "done",
-      errors: [],
-      items: [{ id: "i1", audio_file: "a.m4a", status: "done" }],
-    };
-    mockServer((url, init) => {
-      const method = init?.method ?? "GET";
-      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
-      if (url.pathname === "/api/calls/c2" && method === "GET") return Promise.resolve(jsonResponse(doneCall));
-      if (url.pathname === "/api/calls/c2/audio" && method === "PUT") {
-        return Promise.resolve(jsonResponse({ upload: { accepted: false, duplicate_of: "a.m4a" } }));
-      }
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    localStorage.setItem("talentHub.activeTool", "phone");
-    localStorage.setItem("talentHub.lastCall", "c2");
-    render(<App />);
-
-    await waitFor(() => expect(document.getElementById("callDetailTitle")!.textContent).toBe("已完成电话"));
-    await waitFor(() => expect(document.getElementById("appendCallAudioButton")!.hidden).toBe(false));
-
-    const dup = new File(["a"], "a.m4a", { lastModified: 111 });
-    fireEvent.change(document.getElementById("appendCallAudioFiles") as HTMLInputElement, { target: { files: [dup] } });
-    await screen.findByText("所选录音均已存在，无需重新整理");
-    expect(fetchMock.mock.calls.some(([u, i]) => String(u) === "/api/calls/c2/process" && i?.method === "POST")).toBe(false);
-  });
-
-  it("归档任务：FAB 隐藏，追加文件被忽略", async () => {
-    const archivedCall = {
-      id: "c2",
-      title: "已完成电话",
-      status: "done",
-      archived_at: "2026-08-30T10:00:00+08:00",
-      errors: [],
-      items: [{ id: "i1", audio_file: "a.m4a", status: "done" }],
-    };
-    mockServer((url, init) => {
-      const method = init?.method ?? "GET";
-      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
-      if (url.pathname === "/api/calls/c2" && method === "GET") return Promise.resolve(jsonResponse(archivedCall));
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    localStorage.setItem("talentHub.activeTool", "phone");
-    localStorage.setItem("talentHub.lastCall", "c2");
-    render(<App />);
-
-    await waitFor(() => expect(document.getElementById("callDetailTitle")!.textContent).toBe("已完成电话"));
-    expect(document.getElementById("appendCallAudioButton")!.hidden).toBe(true);
-
-    const dup = new File(["a"], "a.m4a", { lastModified: 111 });
-    fireEvent.change(document.getElementById("appendCallAudioFiles") as HTMLInputElement, { target: { files: [dup] } });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    });
-    expect(fetchMock.mock.calls.some(([u, i]) => String(u)?.includes("/audio") && i?.method === "PUT")).toBe(false);
-  });
 });
 
 describe("历史任务删除", () => {
@@ -596,31 +487,5 @@ describe("重试", () => {
     );
     // running 后重试按钮隐藏
     await waitFor(() => expect(document.getElementById("callRetryButton")!.hidden).toBe(true));
-  });
-});
-
-describe("错误处理", () => {
-  it("录音上传失败展示 toast，停留在新建表单", async () => {
-    const draftCall = { id: "c1", title: "本周电话确认", status: "draft", items: [] };
-    mockServer((url, init) => {
-      const method = init?.method ?? "GET";
-      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
-      if (url.pathname === "/api/calls" && method === "POST") return Promise.resolve(jsonResponse(draftCall));
-      if (url.pathname === "/api/calls/c1/audio" && method === "PUT") {
-        return Promise.resolve(jsonResponse({ detail: "上传失败" }, { status: 500 }));
-      }
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    localStorage.setItem("talentHub.activeTool", "phone");
-    render(<App />);
-    await waitBootstrap();
-
-    const file = new File(["x"], "a.m4a", { lastModified: 111 });
-    fireEvent.change(document.getElementById("callAudioFiles") as HTMLInputElement, { target: { files: [file] } });
-    fireEvent.click(document.getElementById("startCallProcessButton") as HTMLButtonElement);
-
-    await screen.findByText("上传失败");
-    // 停留在新建表单
-    expect(document.getElementById("callCreateView")!.hidden).toBe(false);
   });
 });

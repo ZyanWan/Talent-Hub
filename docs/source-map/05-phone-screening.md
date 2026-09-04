@@ -12,7 +12,7 @@
 
 ```text
 frontend/src/views/PhoneView.tsx 处理任务
-  → POST /api/calls {title, job_title, job_id, soft_skill_focus, soft_skill_dimensions}
+  → POST /api/calls {title, title_mode, job_title, job_id, soft_skill_focus, soft_skill_dimensions}
   → CallRepository.create()
   → calls/<call_id>/record.json
   → 创建 audio/ transcripts/ summaries/
@@ -23,6 +23,8 @@ frontend/src/views/PhoneView.tsx 处理任务
   → add_item()
   → record.json.items[] 新增 queued 条目
 ```
+
+`title_mode` 使用 `auto|custom` 区分日期默认标题与用户标题。前端对 `auto` 标题按当前界面语言渲染，`custom` 标题保持用户原文；没有该字段的任务仅在标题严格符合中英文日期默认格式时按自动标题兼容显示。
 
 创建表单的软性关注项有两层：8 个预设维度 chips（key 存 `soft_skill_dimensions`，后端映射为中文规范名）与自定义文本（`soft_skill_focus`）。「关联筛选岗位」下拉选项来自 `/api/jobs?scope=recent&limit=100`（最近 100 个未归档岗位）；选中岗位后 `importCallJobFocus()` 请求 `/api/jobs/<id>/criteria-json`，把该岗位 `bonus_signals` 填入自定义文本，并按 `SOFT_SKILL_KEYWORD_MAP` 关键词映射勾选预设维度（零额外模型调用）。`job_id` 仅用于溯源，不参与处理逻辑。
 

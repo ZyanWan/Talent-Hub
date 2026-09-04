@@ -72,15 +72,15 @@
 `frontend/` 是生产前端实现（React + TypeScript，Vite 构建；构建产物 `frontend/dist` 由 FastAPI 托管，`GET /` 注入 token、根路径挂载静态资源）：
 
 - `frontend/src/api/client.ts`：唯一 API client，实现 `X-App-Token` 注入、string body JSON Content-Type、错误 `detail` 透传三态、content-type JSON/非 JSON 判定；行为由契约测试 `api-client.test.ts` 锁定。
-- `frontend/src/i18n/`：`messages.ts` 为手工维护的唯一消息源（zh/en 各 263 key，勿手改）；`index.ts` 提供 `t` / `getLanguage` / `setLanguage` / `onChange`，语言状态以 `src/state` 的 `state.language` 为唯一事实来源，`setLanguage` 写 `state.language` + 持久化并广播；
+- `frontend/src/i18n/`：`messages.ts` 为手工维护的唯一消息源（zh/en 各 262 key，勿手改）；`index.ts` 提供 `t` / `getLanguage` / `setLanguage` / `onChange`，语言状态以 `src/state` 的 `state.language` 为唯一事实来源，`setLanguage` 写 `state.language` + 持久化并广播；
   key 全集由 `i18n.test.ts` 锁定。
 - `frontend/src/state/index.ts`：全局状态单对象（`compareSelection` 为 `Set`、`resumeRenderCache` 为 `Map`、`pollTimer`/`callPollTimer` 为定时器句柄），字段按 §2.1 归属表以注释分组标注；
-  `state.language` 为前端语言唯一事实来源，被 `frontend/src/i18n/` 消费（`getLanguage` / `setLanguage` / `t` 均读写 `state.language`），行为由 `frontend/tests/unit/state.test.ts` 锁定。
+  `state.language` 为前端语言唯一事实来源，被 `frontend/src/i18n/` 消费（`getLanguage` / `setLanguage` / `t` 均读写 `state.language`）。
 - `frontend/src/router/index.ts`：视图路由（`registerView(name, {enter, exit})` / `show(name)` / `showSection(sectionId)` / `currentView()`）；
   `show` 顺序固定为 exit 旧视图 → 更新 current → hideAll（5 个 section 与 `resultActions`/`appendResumesButton`/`appendCallAudioButton` 隐藏、`viewTitle` 可见）→ enter 新视图，同一视图重复 show 直接返回；
-  不依赖全局 state，DOM 查找内联 `document.getElementById`（元素缺失时 `console.warn`），行为由 `router.test.ts` 锁定。
+  不依赖全局 state，DOM 查找内联 `document.getElementById`（元素缺失时 `console.warn`）。
 - `frontend/src/ui/customSelect.ts`：自定义下拉组件（隐藏的原生 `select` 做值载体，`value` 读写与 `change` 事件语义不变；菜单从 `select.options` 渲染，动态 option 变化后调用 `sync()` 重建；
-  展开/收起过渡与键盘导航（方向键/Enter/Space/Tab/Escape）；方向自适应按最近滚动容器/视口底部判断向上/向下弹出，菜单限高 300px 内部滚动；订阅 `src/i18n` 的 `onChange`，语言切换自动重建菜单——option 文案由 React 异步提交 DOM，故 `onChange` 回调经双 `requestAnimationFrame` 延迟到提交完成后执行 `sync()`，避免重建时读到切换前旧文案），对外仅暴露 `createCustomSelect({ wrap, select })` → `{ sync, close }`，行为由 `frontend/tests/unit/customSelect.test.ts` 锁定。
+  展开/收起过渡与键盘导航（方向键/Enter/Space/Tab/Escape）；方向自适应按最近滚动容器/视口底部判断向上/向下弹出，菜单限高 300px 内部滚动；订阅 `src/i18n` 的 `onChange`，语言切换自动重建菜单——option 文案由 React 异步提交 DOM，故 `onChange` 回调经双 `requestAnimationFrame` 延迟到提交完成后执行 `sync()`，避免重建时读到切换前旧文案），对外仅暴露 `createCustomSelect({ wrap, select })` → `{ sync, close }`。
 - `frontend/src/ui/`：基础 UI 组件（React + TSX），class 名 / ARIA / 状态语义对齐 `frontend/public/styles.css` 的 shell 与状态样式体系，样式 token 直接引用现有 CSS 变量（`--ink`/`--paper`/`--surface-muted`/`--red`/`--blue-soft` 等），不引入新设计。
   各组件：
   - `Button.tsx`：`Button({ variant: "primary"|"secondary"|"danger"|"icon"|"send", busy, ... })`，variant 映射 `.primary-button`（黑底白字）/`.secondary-button`（白底描边）/`.danger-button`（红底）/`.icon-button`（圆形 36px）/`.send-button`（黑色主 CTA）；
@@ -91,7 +91,6 @@
   - `Progress.tsx`：`.progress-track`（高 4px、圆角、`--surface-muted` 底）内嵌填充 `span`，宽度经内联 style 控制并收敛到 0-100；电话视图结构相同的 `.call-progress-track` 通过 `trackClassName` 复用。
   - `Toast.tsx`：`.toast` + `role="status"` + `hidden` 显隐控制（`open` prop）；自动隐藏定时属调用方应用逻辑，不在组件内。
   - `EmptyState.tsx`：两种 DOM 形态——`variant="history"` → `.history-empty-state`（flex 列居中，可选图标 + 文案）；`variant="table"` → `tr.empty-row > td`（结果表空行）。
-  - 渲染级断言由 `frontend/tests/unit/ui-components.test.tsx` 锁定（jsdom，不截图）。
   - `PreviewDialog.tsx`：产物预览弹窗（查看类：关闭按钮 + ESC + 点遮罩关闭，无未保存输入）。受控 props `{ open, jobId, kind: "criteria" | "workbook", onClose }`；
     预览数据与请求句柄为组件本地状态，不写全局 state。打开时经 `api()` 请求 `GET /api/jobs/{id}/preview/{kind}` 并用 AbortController 中止上一次未完成请求，卸载/关闭时中止当前请求；
     markdown 安全渲染仅 h1-h3/ul/p（文本节点输出防 HTML 注入），空内容显示 emptyPreview；workbook sheet tabs 支持点击与左右/Home/End 键盘切换、空表显示 emptyWorksheet；
@@ -128,8 +127,7 @@
     无 lastJob → 写 activeTool=screening 并进入 setup）→ `!settings.is_ready` 自动打开设置弹窗 → 隐藏 startup-loading。**视图切换 `navigate(name)` 对筛选子视图统一 `routerShow("screening")`**（setup / progress / criteriaReview / results 归一到 "screening" 路由视图，phone 独立），随后 `showSection` 显隐对应 section 并同步 `document.body.dataset.view`（criteriaReview 对应 review）；
     离开筛选视图（切到 phone）时经 router 触发 "screening" 视图 exit 清理筛选轮询定时器；`viewTitle` 在电话视图隐藏，筛选视图按任务标题显示（`displayJobTitle`）。
     筛选四视图（setup / progress / criteriaReview / results）由 `ScreeningView` 渲染；`resultActions`（下载筛选标准 / 评估表格）与追加 FAB 仍由 shell 渲染，其显隐由 ScreeningView 在每次渲染后同步（results 视图 + completed 任务显示，追加 FAB 额外要求未归档），点击事件亦由 ScreeningView 接线（下载打开 `PreviewDialog`、追加 FAB 触发隐藏文件输入）。
-    `frontend/src/main.tsx` 为 Vite 构建入口（`createRoot` 挂载 `#root`，渲染 `<App/>`）。渲染与交互由 `frontend/tests/unit/app-shell.test.tsx` 锁定（12 例，jsdom，不截图；
-    视觉回归由 `frontend/tests/visual/baseline.spec.ts` 覆盖）。
+    `frontend/src/main.tsx` 为 Vite 构建入口（`createRoot` 挂载 `#root`，渲染 `<App/>`）。应用启动、基础路由与异步任务隔离由 `frontend/tests/unit/app-shell.test.tsx` 锁定；真实托管页面启动由 `frontend/tests/visual/smoke.spec.ts` 验证。
   - `src/views/ScreeningView.tsx`：简历筛选任务流视图，由 App 以 props `{ view, onNavigate, onToast, onRequireSettings, resetSignal }` 驱动（`view` 为当前 section 名，`onNavigate` 复用 App.navigate，`resetSignal` 递增时重置工作区 state 清理）。
     **setup**：JD textarea（`#jdText`）+ 简历拖拽区（accept 为 `.pdf,.docx,.txt,.md,.markdown,.png,.jpg,.jpeg,.webp,.tif,.tiff,.bmp`，dragenter/dragover/drop 带 `.dragging` 态）+ 文件输入选择，去重键 `${name}:${size}:${lastModified}`（写全局 `state.selectedResumes`）；
     「候选人简历」摘要按钮（`#openResumeWorkspaceButton`）为查看/增添/移除简历的唯一入口，点击打开 `ResumeWorkspace` 本地模式，不渲染内联已选列表；开始按钮按 `hasJd && count>0` 启停。
@@ -146,20 +144,20 @@
     重试 / 飞书通知重试（`POST /api/jobs/{id}/retry-notification`，`{job, errors, sent}`）；下载筛选标准 / 评估表格经 `PreviewDialog`（workbook / criteria 预览 + Blob 下载）。
     **追加简历**：仅 completed 且未归档任务（FAB 显隐由 results 视图控制），逐份上传后按 `upload.accepted` 区分：重复且 `duplicate_of` 未在已评估结果中计 pendingDuplicateCount；
     全部重复且无 pending → 回读任务 + `noNewResumes` 提示并回 results；否则 `POST start` 重新筛选；归档任务直接忽略。`resultActions` / 追加 FAB 为 shell 渲染的非受控元素，其显隐在每次渲染后同步（读取 `document.getElementById`，不参与 React reconcile，与 router 的 DOM 显隐管理一致）。
-    交互与渲染由 `frontend/tests/unit/screening-view.test.tsx` 锁定（10 例，jsdom，不截图：setup 去重、候选人简历卡片打开本地工作台并渲染 PDF、创建任务上传含 duplicate_of、progress 轮询与取消至终态、criteriaReview 表单、results 汇总过滤与对比、简历列眼睛按钮打开已存预览、归档禁用追加、追加简历 noNewResumes / 重新 start、下载触发 Blob）。
+    核心交互由 `frontend/tests/unit/screening-view.test.tsx` 锁定（7 例，jsdom，不截图：创建与上传去重、轮询取消、标准确认、结果过滤对比、追加简历、归档恢复和删除复位）。
   - `src/views/ResumeWorkspace.tsx`：简历工作台弹窗（编辑类：仅「关闭按钮 + ESC」退出，点遮罩不关闭）。受控 props `{ open, stored?, onClose, onFilesChanged? }`；
     本地模式文件列表读全局 `state.selectedResumes`（弹窗内新增按 `name:size:lastModified` 去重追加、移除与预览索引调整，增删后经 `onFilesChanged` 通知外层同步），stored 模式由 `{ jobId, filename, candidateName }` 进入（results 视图入口），单文件预览并隐藏导航与添加按钮。
     预览接口：本地 PDF `POST /api/resumes/preview?scale=`（multipart 字段 `file`，页面按 `name:size:lastModified` 缓存到 `state.resumeRenderCache`，命中不重复请求），已存 PDF `GET /api/jobs/{id}/resumes/{filename}/preview?scale=`（不缓存）；
     图片预览本地 `URL.createObjectURL(file)`、已存 `GET /api/jobs/{id}/resumes/{filename}`（Blob → `createObjectURL`），切换/关闭时 `revokeObjectURL`。
     前端渲染与预取可并行发起请求，后端以进程内互斥锁串行执行 PDFium 调用；前端的渲染与预取各持 AbortController（切换/关闭中止旧请求；预取跳过当前文件与已缓存项，逐份写入缓存）。非 PDF/非图片本地文件显示 `previewUnavailable`；
     后端 415/413/422/503 等异常显示 `previewFailed`，并通过 `api()` 透传具体 `detail`。上一个/下一个导航（位置计数 + 端点禁用态）、移除、ESC/按钮关闭、订阅 `src/i18n` 的 `onChange` 语言切换重渲染。
-    前端交互与渲染由 `frontend/tests/unit/resume-workspace.test.tsx` 锁定（13 例，jsdom，不截图：本地 PDF multipart 与页面 img、缓存命中不重复请求、切换中止旧请求、已存 PDF 不缓存、本地/已存图片 Blob 与 revoke、错误态（非 PDF 拦截/415/503）、导航、移除、禁遮罩关闭、添加去重）；
+    核心预览边界由 `frontend/tests/unit/resume-workspace.test.tsx` 锁定（5 例，jsdom，不截图：本地 PDF、切换请求中止、历史 PDF 端点、图片 Blob 释放和不支持格式拦截）；
     后端并发边界由 `tests/test_resume_preview.py` 锁定。
   - `src/views/PhoneView.tsx`：电话确认任务流视图，由 App 以 props `{ view, callOpenRequest, onToast, onRequireSettings, onHistoryChanged, resetSignal }` 驱动（`view === "phone"` 时激活；
     `callOpenRequest={id, seq}` 为历史抽屉打开任务的请求，seq 递增保证重复打开同一条目也触发加载；`resetSignal` 递增时重置工作区；`onHistoryChanged` 在任务状态变化后通知外层，历史抽屉每次打开时重新拉取列表，故无需缓存失效动作）。
     **进入电话视图**：按 `callOpenRequest.id` 或 `localStorage.talentHub.lastCall` 经 `GET /api/calls/{id}` 恢复任务（queued/running 自动续轮询），无 lastCall 时展示新建表单；
     工具切换重置由 `resetSignal` 效果完成。**新建表单**：标题 / 岗位名 / 关联岗位下拉（`GET /api/jobs?scope=recent&limit=100`，复用 `createCustomSelect`，草稿关联岗位不在最近 100 条时补拉 `GET /api/jobs/{id}`）+ 岗位联动导入（`GET /api/jobs/{id}/criteria-json` 的 `bonus_signals` 关键词匹配预设维度，seq 防乱序覆盖，完全替换语义，失败按「筛选标准尚未生成」/「导入失败」toast）+ 软性维度勾选（`soft_skill_dimensions`）+ 录音选择（拖拽/点击，accept `.m4a,.wav,.mp3,.ogg,.opus`，`name:size:lastModified` 去重，后缀/100MB 校验经 `callInvalidAudio` toast）。
-    **任务创建**：`POST /api/calls`（body `{title, job_title, job_id, soft_skill_focus, soft_skill_dimensions}`，标题默认日期）→ 逐份 `PUT /api/calls/{id}/audio?filename=`（body 为 File，`upload.accepted===false` 计重复）→ 全部重复则 `noNewAudio` 提示、不触发整理且表单保留草稿关联信息（软性维度/关联岗位回填）→ 否则 `POST /api/calls/{id}/process` → 详情视图并轮询；
+    **任务创建**：`POST /api/calls`（body `{title, title_mode, job_title, job_id, soft_skill_focus, soft_skill_dimensions}`；`title_mode` 为 `auto|custom`，自动标题按当前界面语言展示日期标题）→ 逐份 `PUT /api/calls/{id}/audio?filename=`（body 为 File，`upload.accepted===false` 计重复）→ 全部重复则 `noNewAudio` 提示、不触发整理且表单保留草稿关联信息（软性维度/关联岗位回填）→ 否则 `POST /api/calls/{id}/process` → 详情视图并轮询；
     重复计数经 `duplicateAudioSkipped` toast。**追加录音**：仅 call done 且未归档（shell 渲染的 `appendCallAudioButton` FAB 显隐每次渲染后同步），追加后自动 `POST process`；
     全部重复 → `noNewAudio`；追加中忽略重复触发。**详情视图**：标题 / meta（岗位名 · 候选人计数 · stageLabel · 更新时间）/ 错误列表 / 条目卡片（音频名或候选人名 / 状态徽章 `call-badge` / 非 done 条目显示进度条与错误，`transcribing|summarizing` 加活动态；
     done 卡片头部点击打开条目详情浮层，浮层与音频播放由 `src/views/CallItemDetail.tsx` 承载）。操作按钮显隐：取消按钮仅 queued/running（`POST /api/calls/{id}/cancel`，中间态回滚由服务端收敛），重试按钮仅 failed/cancelled 且未归档（`POST /api/calls/{id}/process`）。
@@ -167,7 +165,7 @@
     回调先校验任务 id 未变（排期时捕获）再发请求，响应后校验 `currentView() === "phone"` 且 id 未变（防跨任务/跨视图串扰），网络错误不停止轮询（toast 后重排）；
     queued/running 续排，打开/process/追加/重试后经 `[state.currentCall]` 效果统一启动轮询。**详情浮层接线**：done 卡片点击置 `detailItemId` 渲染 `CallItemDetail`（props `{call, itemId, onSelectItem, onClose, onToast, onSaved}`，上/下一个切换同组件内完成）；
     切换任务（`selectCall`）与工具重置（`resetSignal`）时调用 `releaseAudioBlobs()` 释放音频 Blob 并关闭浮层；轮询更新后条目消失时经效果兜底关闭浮层。
-    **状态机**：draft（新建表单）/ queued / running / done / failed / cancelled。交互与渲染由 `frontend/tests/unit/phone-view.test.tsx` 锁定（8 例，jsdom，不截图：新建表单渲染与提交含岗位联动导入与 body 断言、录音上传直传 File、全部重复 noNewAudio 与草稿回填、轮询渲染条目状态/进度与取消至终态、追加录音 process 与 FAB 显隐、追加全部重复、归档任务忽略追加、failed 重试、上传失败 toast）。
+    **状态机**：draft（新建表单）/ queued / running / done / failed / cancelled。核心交互由 `frontend/tests/unit/phone-view.test.tsx` 锁定（8 例，jsdom，不截图：创建上传、轮询取消、追加录音、删除复位、归档恢复、历史请求隔离与失败回落、任务重试）。
   - `src/views/CallItemDetail.tsx`：电话条目详情浮层。受控 props `{ call, itemId, onSelectItem, onClose, onToast, onSaved }`（`onSelectItem` 供上/下一个按已完成条目顺序切换，`onSaved` 在保存回读后通知外层刷新历史并同步界面）；
     遮罩通过 React Portal 直接挂到 `document.body`，不受 `.phone-view` 淡入动画层叠上下文限制。**弹窗类别**：编辑类，仅「关闭按钮 + ESC」退出，点遮罩不关闭（防止误触打断录音/丢未保存输入）；
     尺寸由 `.call-item-detail` 独立控制（最大 1400×900px，桌面端打开后高度不随折叠面板开合变化，660px 及以下铺满视口），不改变其他 `.preview-dialog`；
@@ -180,7 +178,7 @@
     条目切换不跨条目恢复。**编辑保存**：`PUT /api/calls/{id}/items/{item_id}`，body `{narrative, candidate_name, fields:[{key,label,value,status,note}]}`（完整覆盖语义、字段值可清空，status 缺省回退「已确认」），成功后回读 `GET /api/calls/{id}` 写回 `state.currentCall` 并经 `onSaved` 通知外层；
     **facts 跳转**：点击事实行 → `currentTime = start_time` 并播放（音频未就绪时先加载，readyState/loadedmetadata 后执行）；**Markdown 下载**：`GET .../items/{item_id}/download`（Blob，文件名解析 `filename*` → `filename` → 回退 `{itemId}.md`）。
     **非 done 条目**：转写中/整理中/failed 在详情内展示进度（`transcribing|summarizing` 加活动条纹）与错误文案，不加载音频（本实现保留浮层展示状态）。语言切换经 `src/i18n` `onChange` 重渲染。
-    交互与渲染由 `frontend/tests/unit/call-item-detail.test.tsx` 锁定（15 例，jsdom，不截图：详情渲染、音频 Blob 加载/缓存复用/并发合并/releaseAudioBlobs revoke/失败隐藏与 toast/异常首包单次恢复、轮询重绘播放保持与状态往返快照恢复、保存 PUT body 与回读、facts 跳转、Markdown 下载文件名解析与回退、上/下一个、Portal 挂载与禁遮罩关闭、非 done 进度/错误、语言切换）。
+    核心交互由 `frontend/tests/unit/call-item-detail.test.tsx` 锁定（8 例，jsdom，不截图：详情结构、音频加载失败、首包解码恢复、缓存释放、轮询重绘播放保持、编辑保存、事实跳转和处理中状态）。
 
 ### 2.2 前端 UI 行为约定
 

@@ -3,7 +3,7 @@
 // - 新建表单：标题 / 岗位名 / 关联岗位下拉（GET /api/jobs?scope=recent&limit=100，
 //   createCustomSelect 复用）+ 岗位联动导入（criteria-json 的 bonus_signals 关键词
 //   匹配预设维度，零额外模型调用）+ 软性维度勾选 + 录音选择（拖拽/点击，音频类型）
-// - 任务创建：POST /api/calls {title, job_title, job_id, soft_skill_focus,
+// - 任务创建：POST /api/calls {title, title_mode, job_title, job_id, soft_skill_focus,
 //   soft_skill_dimensions}
 // - 历史任务加载：递增请求序号保证仅最后一次选择可写入 currentCall；最新请求
 //   失败时清空恢复键并重置工作区，视图退出与外层 reset 同时使在途请求失效
@@ -23,6 +23,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { api } from "../api/client";
+import { displayCallTitle } from "../callTitle";
 import { onChange, t } from "../i18n";
 import { currentView, registerView } from "../router";
 import { state } from "../state";
@@ -508,6 +509,7 @@ export function PhoneView({
           method: "POST",
           body: JSON.stringify({
             title: title.trim() || defaultCallTitle(),
+            title_mode: title.trim() ? "custom" : "auto",
             job_title: jobTitle.trim(),
             job_id: jobId,
             soft_skill_focus: softSkillFocus.trim(),
@@ -637,7 +639,7 @@ export function PhoneView({
   const items = call?.items || [];
   const hasAudio = state.pendingCallFiles.length > 0 || items.length > 0;
 
-  const detailTitle = String(call?.title || t("untitledJob"));
+  const detailTitle = displayCallTitle(call);
   const detailMeta = [
     ...(call?.job_title ? [String(call.job_title)] : []),
     t("callCandidateCount", { count: items.length }),

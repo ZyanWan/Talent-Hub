@@ -74,7 +74,7 @@ doubts, transcript
 
 `fields[].key` 是人工编辑的稳定身份；`fields[].status` 表示模型根据通话语义给出的确定性。`facts[].ref` 只用于尝试定位录音时间，不参与正文、招聘判断或字段状态裁决。
 
-前端实际直接消费的子集：任务字段中仅 `progress`、`created_at` 不被前端直接读取（电话任务结构不存在 `completed`/`total`，二者是 Job 任务专有字段）；摘要直接渲染 `narrative`、`fields[].{key,label,value,status}`、`facts[].{content,speaker,ref,start_time}`、`doubts`、`transcript`；`remark_sections`、`soft_skill_summary`、`soft_skill_summary_title`、`qa_records` 由后端 `render_remark_narrative()` 渲染进 `narrative` 后间接消费；`call_date` 和 `fields[].note` 前端不直接展示，编辑保存时仍会透传。
+前端实际直接消费的子集：电话任务的 `title_mode` 使用 `auto|custom` 区分可本地化的日期默认标题与保持原文的用户标题；任务字段中仅 `progress`、`created_at` 不被前端直接读取（电话任务结构不存在 `completed`/`total`，二者是 Job 任务专有字段）。摘要直接渲染 `narrative`、`fields[].{key,label,value,status}`、`facts[].{content,speaker,ref,start_time}`、`doubts`、`transcript`；`remark_sections`、`soft_skill_summary`、`soft_skill_summary_title`、`qa_records` 由后端 `render_remark_narrative()` 渲染进 `narrative` 后间接消费；`call_date` 和 `fields[].note` 前端不直接展示，编辑保存时仍会透传。
 
 ### 11.4 前端轮询
 

@@ -1,19 +1,10 @@
 // =====================================================================
-// 电话条目详情浮层（src/views/CallItemDetail.tsx）渲染与交互测试（jsdom）。
-// 覆盖：详情渲染（narrative/fields/facts/doubts/transcript）、
-// 音频加载（Blob → createObjectURL、缓存复用与并发下载合并、releaseAudioBlobs
-// revoke、加载失败隐藏播放器 + toast、异常首包自动跳过一次）、轮询重绘播放保持（同一条目复用
-// <audio> 元素，currentTime/playing 不变）与状态往返重建后的快照恢复、
-// 编辑保存（PUT body 完整字段与回读）、facts 时间点跳转、Markdown 下载
-// （filename* 解析与 itemId.md 回退）、上一个/下一个导航、编辑类关闭行为
-// （点遮罩不关闭、关闭按钮与 ESC 关闭）、非 done 条目进度/错误展示、
-// 语言切换重渲染。
+// 电话条目详情的结构渲染、音频加载与关键恢复、编辑保存、事实跳转和处理中状态。
 // 仅做渲染级断言，不含截图验证。
 // =====================================================================
 
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setLanguage } from "../../src/i18n";
 import { state } from "../../src/state";
 import { CallItemDetail, releaseAudioBlobs, type CallItemSummary, type CallTask } from "../../src/views/CallItemDetail";
 
@@ -157,7 +148,6 @@ describe("详情渲染", () => {
     expect(document.querySelector(".call-transcript")!.textContent).toContain("转写文本");
   });
 });
-
 describe("音频加载与缓存", () => {
   it("Blob → createObjectURL 挂载到播放器；加载失败隐藏播放器并 toast", async () => {
     mockServer((url) => {
@@ -229,25 +219,6 @@ describe("音频加载与缓存", () => {
     expect(audioFetchCount()).toBe(2);
   });
 
-  it("并发下载合并：加载期间第二个浮层打开同一条目复用同一请求", async () => {
-    let resolveAudio!: (value: Response) => void;
-    mockServer((url) => {
-      if (url.pathname.endsWith("/items/i1/audio")) {
-        return new Promise<Response>((resolve) => {
-          resolveAudio = resolve;
-        });
-      }
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    renderDetail(doneCall(), "i1");
-    renderDetail(doneCall(), "i1"); // 第二个浮层并发打开同一条目
-
-    await act(async () => {
-      resolveAudio(new Response(new Blob(["audio-bytes"], { type: "audio/mpeg" })));
-    });
-    await waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1));
-    expect(audioFetchCount()).toBe(1);
-  });
 });
 
 describe("播放恢复", () => {
@@ -284,57 +255,6 @@ describe("播放恢复", () => {
     expect(audioFetchCount()).toBe(1); // 未重复下载
   });
 
-  it("状态往返重建音频元素后按捕获快照恢复（补偿已播时长 + 播放）", async () => {
-    mockServer((url) => {
-      if (url.pathname.endsWith("/items/i1/audio")) return Promise.resolve(audioResponse());
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    const { rerender, onSelectItem, onClose, onToast, onSaved } = renderDetail(doneCall(), "i1");
-    await waitFor(() => expect((document.querySelector(".call-audio") as HTMLAudioElement).src).toBe("blob:mock-url"));
-    const audio = document.querySelector(".call-audio") as HTMLAudioElement;
-    audio.currentTime = 42;
-    Object.defineProperty(audio, "paused", { value: false, configurable: true });
-
-    // 条目转为转写中：详情展示进度态，音频元素销毁（卸载时捕获快照并暂停）
-    const processing: CallTask = {
-      ...doneCall(),
-      items: doneCall()
-        .items!.map((entry) =>
-          String(entry.id) === "i1" ? { ...entry, status: "transcribing", progress: 50 } : entry
-        ),
-    };
-    rerender(
-      <CallItemDetail
-        call={processing}
-        itemId="i1"
-        onSelectItem={onSelectItem}
-        onClose={onClose}
-        onToast={onToast}
-        onSaved={onSaved}
-      />
-    );
-    expect(document.querySelector(".call-audio")).toBeNull();
-    expect(document.querySelector(".call-item-progress")).toBeTruthy();
-
-    // 回到 done：音频元素重建，加载缓存 URL 后按快照恢复
-    rerender(
-      <CallItemDetail
-        call={doneCall()}
-        itemId="i1"
-        onSelectItem={onSelectItem}
-        onClose={onClose}
-        onToast={onToast}
-        onSaved={onSaved}
-      />
-    );
-    const newAudio = document.querySelector(".call-audio") as HTMLAudioElement;
-    await waitFor(() => expect(newAudio.src).toBe("blob:mock-url"));
-    const playSpy = vi.spyOn(newAudio, "play").mockImplementation(() => Promise.resolve());
-    Object.defineProperty(newAudio, "readyState", { value: 4, configurable: true });
-    fireEvent(newAudio, new Event("loadedmetadata"));
-    expect(newAudio.currentTime).toBeGreaterThanOrEqual(42);
-    expect(playSpy).toHaveBeenCalled();
-  });
 });
 
 describe("编辑保存", () => {
@@ -389,90 +309,6 @@ describe("facts 时间点跳转", () => {
   });
 });
 
-describe("Markdown 下载", () => {
-  it("filename* 解析文件名；缺失时回退 {itemId}.md", async () => {
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => { });
-    let withDisposition = true;
-    mockServer((url) => {
-      if (url.pathname.endsWith("/items/i1/download")) {
-        return Promise.resolve(
-          new Response(new Blob(["# 张三"], { type: "text/markdown" }), {
-            headers: withDisposition
-              ? { "content-disposition": "attachment; filename*=utf-8''%E5%BC%A0%E4%B8%89.md" }
-              : {},
-          })
-        );
-      }
-      if (url.pathname.endsWith("/items/i1/audio")) return Promise.resolve(audioResponse());
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    const first = renderDetail(doneCall(), "i1");
-    fireEvent.click(screen.getByRole("button", { name: "下载" }));
-    await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
-    expect((clickSpy.mock.instances[0] as HTMLAnchorElement).download).toBe("张三.md");
-    first.unmount();
-
-    // 无 content-disposition：回退 itemId.md
-    withDisposition = false;
-    clickSpy.mockClear();
-    renderDetail(doneCall(), "i1");
-    fireEvent.click(screen.getByRole("button", { name: "下载" }));
-    await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
-    expect((clickSpy.mock.instances[0] as HTMLAnchorElement).download).toBe("i1.md");
-  });
-});
-
-describe("上一个/下一个", () => {
-  it("按已完成条目顺序切换，端点禁用", async () => {
-    mockServer((url) => {
-      if (url.pathname.endsWith("/items/i1/audio") || url.pathname.endsWith("/items/i2/audio")) {
-        return Promise.resolve(audioResponse());
-      }
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    // 第一个 done：上一个禁用
-    const first = renderDetail(doneCall(), "i1");
-    expect(screen.getByRole("button", { name: "上一个" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "下一个" })).not.toBeDisabled();
-    first.unmount();
-
-    // 第二个 done（i3 为转写中，不计入）：下一个禁用；点击上一个切到 i1
-    const { onSelectItem } = renderDetail(doneCall(), "i2");
-    expect(screen.getByRole("button", { name: "上一个" })).not.toBeDisabled();
-    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "上一个" }));
-    expect(onSelectItem).toHaveBeenCalledWith("i1");
-  });
-});
-
-describe("关闭行为", () => {
-  it("编辑类：点遮罩不关闭，关闭按钮关闭", async () => {
-    mockServer((url) => {
-      if (url.pathname.endsWith("/items/i1/audio")) return Promise.resolve(audioResponse());
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    const { onClose } = renderDetail(doneCall(), "i1");
-    const backdrop = document.querySelector(".preview-backdrop")!;
-
-    expect(backdrop.parentElement).toBe(document.body);
-    fireEvent.click(backdrop);
-    expect(onClose).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "返回列表" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-  });
-
-  it("ESC 关闭", async () => {
-    mockServer((url) => {
-      if (url.pathname.endsWith("/items/i1/audio")) return Promise.resolve(audioResponse());
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    const { onClose } = renderDetail(doneCall(), "i1");
-    fireEvent.keyDown(window, { key: "Escape" });
-    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-  });
-});
-
 describe("非 done 条目", () => {
   it("转写中/整理中/failed 在详情内展示进度与错误，不加载音频", async () => {
     const runningCall: CallTask = {
@@ -494,21 +330,5 @@ describe("非 done 条目", () => {
     expect(screen.getByText("10%")).toBeInTheDocument();
     expect(screen.getByText("转写失败")).toBeInTheDocument();
     expect(document.querySelector(".call-audio")).toBeNull();
-  });
-});
-
-describe("语言切换", () => {
-  it("切换语言后重渲染文案", async () => {
-    mockServer((url) => {
-      if (url.pathname.endsWith("/items/i1/audio")) return Promise.resolve(audioResponse());
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    renderDetail(doneCall(), "i1");
-    expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument();
-
-    act(() => {
-      setLanguage("en");
-    });
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 });

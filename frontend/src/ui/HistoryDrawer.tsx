@@ -21,6 +21,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api/client";
+import { displayCallTitle } from "../callTitle";
 import { getLanguage, onChange, t } from "../i18n";
 import { state } from "../state";
 import { Button } from "./Button";
@@ -34,6 +35,7 @@ export type HistoryScope = "recent" | "archived";
 export interface HistoryItem {
   id: string;
   title: string;
+  title_mode?: "auto" | "custom";
   status: string;
   stage?: string;
   job_title?: string;
@@ -373,7 +375,7 @@ export function HistoryDrawer({
   const deleteDetailKey = deleteTarget?.kind === "call" ? "callDeleteDetail" : "deleteJobDetail";
   const deleteName = deleteTarget?.item.title
     ? deleteTarget.kind === "call"
-      ? deleteTarget.item.title
+      ? displayCallTitle(deleteTarget.item)
       : displayJobTitle(deleteTarget.item.title)
     : t("untitledJob");
 
@@ -388,7 +390,7 @@ export function HistoryDrawer({
 
   const renderRow = (item: HistoryItem): ReactNode => {
     const active = isCall ? state.currentCall?.id === item.id : state.currentJob?.id === item.id;
-    const title = item.title ? (isCall ? item.title : displayJobTitle(item.title)) : t("untitledJob");
+    const title = item.title ? (isCall ? displayCallTitle(item) : displayJobTitle(item.title)) : t("untitledJob");
     const metaParts = [isCall ? callStatusLabel(item) : statusLabel(item)];
     if (isCall && item.job_title) metaParts.push(item.job_title);
     metaParts.push(formatDate(item.updated_at));

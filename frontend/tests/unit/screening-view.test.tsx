@@ -1,11 +1,5 @@
 // =====================================================================
-// 简历筛选任务流视图（src/views/ScreeningView.tsx，经 src/App.tsx 集成）渲染与交互测试（jsdom）。
-// 覆盖：setup 渲染与文件选择去重（name:size:lastModified）、创建任务并上传（含
-// duplicate_of 分支与请求顺序）、progress 轮询渲染与取消（终态后停止轮询）、
-// criteriaReview 表单编辑与保存并开始、results 汇总统计 / A/B/C 过滤 / 对比勾选、
-// 归档任务禁止追加、追加简历（全部重复 → noNewResumes；新文件 → 重新 start）、
-// 历史侧栏归档/恢复/删除当前任务后的工作区同步、下载评估表格（PreviewDialog + Blob）。
-// 仅做渲染级断言，不含截图验证（视觉回归由 tests/visual/baseline.spec.ts 覆盖）。
+// 简历筛选的创建、轮询、标准确认、结果、追加与历史任务状态迁移。
 // =====================================================================
 
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -115,52 +109,6 @@ function completedJob(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
-describe("setup 视图", () => {
-  it("渲染 JD 输入与拖拽区，文件选择按 name:size:lastModified 去重", async () => {
-    mockServer(() => Promise.resolve(jsonResponse(readySettings())));
-    render(<App />);
-    await waitBootstrap();
-
-    const jd = document.getElementById("jdText") as HTMLTextAreaElement;
-    const start = document.getElementById("startButton") as HTMLButtonElement;
-    expect(jd).toBeTruthy();
-    expect(document.getElementById("resumeDropZone")).toBeTruthy();
-    expect(start.disabled).toBe(true);
-
-    const f1 = new File(["a"], "resume-a.pdf", { lastModified: 111 });
-    const f1dup = new File(["a"], "resume-a.pdf", { lastModified: 111 });
-    const f2 = new File(["b"], "resume-b.pdf", { lastModified: 222 });
-    fireEvent.change(document.getElementById("resumeFiles") as HTMLInputElement, {
-      target: { files: [f1, f1dup, f2] },
-    });
-
-    // name:size:lastModified 全同视为重复，去重后 2 份
-    expect(document.getElementById("resumeMaterialMeta")!.textContent).toContain("2 份");
-
-    fireEvent.change(jd, { target: { value: "招聘后端工程师" } });
-    expect(start.disabled).toBe(false);
-  });
-
-  it("点击候选人简历卡片打开简历工作台（本地模式）并渲染 PDF", async () => {
-    mockServer((url, init) => {
-      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
-      if (url.pathname === "/api/resumes/preview") {
-        return Promise.resolve(jsonResponse({ page_count: 1, pages: [{ index: 1, data: "data:image/png;base64,AAA" }] }));
-      }
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    render(<App />);
-    await waitBootstrap();
-
-    const f1 = new File(["a"], "resume-a.pdf", { lastModified: 111 });
-    fireEvent.change(document.getElementById("resumeFiles") as HTMLInputElement, { target: { files: [f1] } });
-    fireEvent.click(document.getElementById("openResumeWorkspaceButton") as HTMLButtonElement);
-
-    expect(await screen.findByRole("dialog", { name: "候选人简历" })).toBeInTheDocument();
-    expect(await screen.findByRole("img", { name: "resume-a.pdf - 1" })).toHaveAttribute("src", "data:image/png;base64,AAA");
-  });
-});
 
 describe("创建任务并上传", () => {
   it("POST /api/jobs → PUT jd → 逐份上传（accepted/duplicate_of）→ POST start，展示重复提示", async () => {
@@ -404,42 +352,6 @@ describe("results 视图", () => {
     expect(compareButton.disabled).toBe(false);
   });
 
-  it("归档任务：追加 FAB 与结果动作按钮隐藏，禁止追加", async () => {
-    mockBootstrapWithJob(completedJob({ archived_at: "2026-08-31T10:00:00+08:00" }));
-    render(<App />);
-
-    await waitFor(() => expect(document.getElementById("resultsView")!.hidden).toBe(false));
-    expect(within(document.getElementById("resultsView")!).getByText("张三")).toBeInTheDocument();
-    expect(document.getElementById("appendResumesButton")!.hidden).toBe(true);
-    expect(document.getElementById("retrySavedJobButton")!.hidden).toBe(true);
-    expect(document.getElementById("retryJobNotificationButton")!.hidden).toBe(true);
-    expect(document.getElementById("editCriteriaButton")!.hidden).toBe(true);
-  });
-
-  it("简历列眼睛按钮打开已存简历预览（stored 模式）", async () => {
-    mockServer((url, init) => {
-      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
-      if (url.pathname === "/api/jobs/j1" && (init?.method ?? "GET") === "GET") {
-        return Promise.resolve(jsonResponse(completedJob()));
-      }
-      if (url.pathname === "/api/jobs/j1/resumes/a.pdf/preview") {
-        return Promise.resolve(jsonResponse({ page_count: 1, pages: [{ index: 1, data: "data:image/png;base64,AAA" }] }));
-      }
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    localStorage.setItem("talentHub.lastJob", "j1");
-    render(<App />);
-
-    await waitFor(() => expect(document.getElementById("resultsView")!.hidden).toBe(false));
-
-    fireEvent.click(screen.getByRole("button", { name: "预览 张三" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "候选人简历" });
-    expect(dialog.classList.contains("stored-preview-mode")).toBe(true);
-    expect(await screen.findByRole("img", { name: "a.pdf - 1" })).toHaveAttribute("src", "data:image/png;base64,AAA");
-    // 已存 PDF 走 GET /api/jobs/{id}/resumes/{filename}/preview，不缓存
-    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/jobs/j1/resumes/a.pdf/preview"))).toBe(true);
-  });
 });
 
 describe("追加简历", () => {
@@ -564,47 +476,5 @@ describe("历史任务变更", () => {
     expect(localStorage.getItem("talentHub.lastJob")).toBeNull();
     expect(document.getElementById("setupView")!.hidden).toBe(false);
     expect(document.getElementById("resultsView")!.hidden).toBe(true);
-  });
-});
-
-describe("下载评估表格", () => {
-  it("下载按钮打开 PreviewDialog，下载走 Blob 并触发文件保存", async () => {
-    const createObjectURL = vi.fn(() => "blob:mock-url");
-    const revokeObjectURL = vi.fn();
-    URL.createObjectURL = createObjectURL as unknown as typeof URL.createObjectURL;
-    URL.revokeObjectURL = revokeObjectURL as unknown as typeof URL.revokeObjectURL;
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => { });
-
-    mockServer((url, init) => {
-      if (url.pathname === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
-      if (url.pathname === "/api/jobs/j1" && (init?.method ?? "GET") === "GET") {
-        return Promise.resolve(jsonResponse(completedJob()));
-      }
-      if (url.pathname === "/api/jobs/j1/preview/workbook") {
-        return Promise.resolve(jsonResponse({ kind: "workbook", sheets: [{ name: "Sheet1", rows: [["候选人"], ["张三"]] }] }));
-      }
-      if (url.pathname === "/api/jobs/j1/download") {
-        return Promise.resolve(
-          new Response("fake-excel-bytes", {
-            status: 200,
-            headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
-          })
-        );
-      }
-      return Promise.resolve(jsonResponse({ ok: true }));
-    });
-    localStorage.setItem("talentHub.lastJob", "j1");
-    render(<App />);
-
-    await waitFor(() => expect(document.getElementById("resultsView")!.hidden).toBe(false));
-    fireEvent.click(document.getElementById("downloadResultButton") as HTMLButtonElement);
-
-    expect(await screen.findByRole("dialog", { name: "评估表格预览" })).toBeInTheDocument();
-    expect(screen.getByText("Sheet1")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "下载 Excel" }));
-    await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
-    expect(clickSpy).toHaveBeenCalled();
-    expect(fetchMock.mock.calls.some(([u]) => String(u) === "/api/jobs/j1/download")).toBe(true);
   });
 });

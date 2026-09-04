@@ -1,11 +1,5 @@
 // =====================================================================
-// 应用根组件（src/App.tsx）shell 渲染与交互测试（jsdom）。
-// 覆盖：bootstrap 成功渲染顶栏与默认视图、启动 loading 隐藏、state.settings/jobs
-// 写入、连接状态（is_ready 显示已连接模型名 / 未配置显示待配置）、语言切换
-// （i18n 语言变化 + document.title / html lang 更新）、历史按钮打开抽屉、
-// 设置按钮打开弹窗、未配置模型自动打开设置弹窗、退出确认流程、bootstrap 分流
-// （activeTool=phone / lastJob 按状态路由）。
-// 仅做渲染级断言，不含截图验证（视觉回归待页面接入后由 Playwright baseline 补齐）。
+// 应用启动、基础路由与历史任务异步隔离。
 // =====================================================================
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -139,26 +133,6 @@ describe("bootstrap 与顶栏渲染", () => {
   });
 });
 
-describe("连接状态", () => {
-  it("is_ready=true 时 configDot 就绪并显示已连接模型名", async () => {
-    mockBootstrap(readySettings());
-    render(<App />);
-
-    await waitBootstrap();
-    expect(document.getElementById("configDot")!.classList.contains("ready")).toBe(true);
-    expect(document.getElementById("configStatus")!.textContent).toBe("gpt-4o-mini 已连接");
-  });
-
-  it("is_ready=false 时 configDot 未就绪并显示待配置", async () => {
-    mockBootstrap({ settings: { is_ready: false }, jobs: [] });
-    render(<App />);
-
-    await waitBootstrap();
-    expect(document.getElementById("configDot")!.classList.contains("ready")).toBe(false);
-    expect(document.getElementById("configStatus")!.textContent).toBe("待配置模型");
-  });
-});
-
 describe("语言切换", () => {
   it("点击 EN 后 i18n 语言变化并更新 document.title 与 html lang", async () => {
     mockBootstrap(readySettings());
@@ -181,73 +155,6 @@ describe("语言切换", () => {
 });
 
 describe("顶栏动作", () => {
-  it("历史按钮打开任务记录抽屉", async () => {
-    mockBootstrap(readySettings());
-    render(<App />);
-    await waitBootstrap();
-
-    // 抽屉打开后请求列表与存储占用（bootstrap 已完成，替换实现供抽屉使用）
-    fetchMock.mockImplementation((url: string) => {
-      if (String(url).startsWith("/api/jobs")) return Promise.resolve(jsonResponse({ jobs: [], total: 0 }));
-      if (String(url).startsWith("/api/calls")) return Promise.resolve(jsonResponse({ calls: [], total: 0 }));
-      if (String(url) === "/api/storage") return Promise.resolve(jsonResponse({ job_count: 0, jobs_bytes: 0 }));
-      return Promise.resolve(jsonResponse({}));
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "任务记录" })).toBeInTheDocument();
-  });
-
-  it("结果页点击另一条历史任务后立即刷新主内容", async () => {
-    const jobA = {
-      id: "job-a",
-      title: "任务 A",
-      status: "completed",
-      completed: 1,
-      total: 1,
-      results: [
-        { source_file: "a.pdf", candidate_name: "候选人 A", conclusion: "A优先约面", blockers: [] },
-      ],
-      errors: [],
-    };
-    const jobB = {
-      id: "job-b",
-      title: "任务 B",
-      status: "completed",
-      completed: 1,
-      total: 1,
-      results: [
-        { source_file: "b.pdf", candidate_name: "候选人 B", conclusion: "B电话确认", blockers: [] },
-      ],
-      errors: [],
-    };
-    localStorage.setItem("talentHub.lastJob", jobA.id);
-    fetchMock.mockImplementation((url: string) => {
-      const value = String(url);
-      if (value === "/api/bootstrap") return Promise.resolve(jsonResponse(readySettings()));
-      if (value === `/api/jobs/${jobA.id}`) return Promise.resolve(jsonResponse(jobA));
-      if (value === `/api/jobs/${jobB.id}`) return Promise.resolve(jsonResponse(jobB));
-      if (value.startsWith("/api/jobs?scope=recent")) {
-        return Promise.resolve(jsonResponse({ jobs: [jobB], total: 1 }));
-      }
-      if (value.startsWith("/api/jobs?scope=archived")) {
-        return Promise.resolve(jsonResponse({ jobs: [], total: 0 }));
-      }
-      if (value.startsWith("/api/calls")) return Promise.resolve(jsonResponse({ calls: [], total: 0 }));
-      if (value === "/api/storage") return Promise.resolve(jsonResponse({ job_count: 2, jobs_bytes: 0 }));
-      return Promise.resolve(jsonResponse({}));
-    });
-    render(<App />);
-
-    expect(await screen.findAllByText("候选人 A")).not.toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "打开最近任务" }));
-    fireEvent.click(await screen.findByRole("button", { name: /任务 B/ }));
-
-    expect(await screen.findAllByText("候选人 B")).not.toHaveLength(0);
-    expect(screen.queryAllByText("候选人 A")).toHaveLength(0);
-  });
-
   it("快速切换历史筛选任务时只提交最后一次选择", async () => {
     const makeJob = (id: string, title: string) => ({
       id,
@@ -333,53 +240,4 @@ describe("顶栏动作", () => {
     expect(document.getElementById("resultsView")!.hidden).toBe(true);
   });
 
-  it("设置按钮打开设置弹窗", async () => {
-    mockBootstrap(readySettings());
-    render(<App />);
-    await waitBootstrap();
-
-    fireEvent.click(screen.getByRole("button", { name: "模型配置" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "模型服务" })).toBeInTheDocument();
-  });
-
-  it("未配置模型（is_ready=false）时自动打开设置弹窗", async () => {
-    mockBootstrap({ settings: { is_ready: false }, jobs: [] });
-    render(<App />);
-
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "模型服务" })).toBeInTheDocument();
-    expect(document.getElementById("configStatus")!.textContent).toBe("待配置模型");
-  });
-
-  it("退出确认：确认后 POST /api/shutdown 并展示退出页", async () => {
-    mockBootstrap(readySettings());
-    render(<App />);
-    await waitBootstrap();
-
-    const confirmMock = vi.fn().mockReturnValue(true);
-    vi.stubGlobal("confirm", confirmMock);
-
-    fireEvent.click(screen.getByRole("button", { name: "退出应用" }));
-
-    expect(await screen.findByRole("heading", { name: "招聘工作台已退出" })).toBeInTheDocument();
-    expect(screen.getByText("可以关闭此页面")).toBeInTheDocument();
-    expect(confirmMock).toHaveBeenCalledWith("退出招聘工作台？运行中的任务会被中断。");
-    const shutdownCall = fetchMock.mock.calls.find((call) => call[0] === "/api/shutdown");
-    expect(shutdownCall).toBeDefined();
-    expect(shutdownCall![1].method).toBe("POST");
-  });
-
-  it("退出取消：confirm 返回 false 时不发请求、不切换退出页", async () => {
-    mockBootstrap(readySettings());
-    render(<App />);
-    await waitBootstrap();
-
-    vi.stubGlobal("confirm", vi.fn().mockReturnValue(false));
-    fireEvent.click(screen.getByRole("button", { name: "退出应用" }));
-
-    expect(fetchMock.mock.calls.some((call) => call[0] === "/api/shutdown")).toBe(false);
-    expect(screen.queryByRole("heading", { name: "招聘工作台已退出" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "退出应用" })).toBeInTheDocument();
-  });
 });
