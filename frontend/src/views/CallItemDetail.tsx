@@ -2,7 +2,7 @@
 // 电话条目详情浮层（React）：详情展示与音频生命周期管理。
 // - 编辑类弹窗：仅关闭按钮 + ESC 退出，点遮罩不关闭（防误触打断录音/丢未保存输入）
 // - 详情内容：候选人（可编辑）/ 音频播放器 / narrative textarea / 可折叠面板
-//   （fields / facts / doubts / transcript / guard_warnings）
+//   （fields / facts / doubts / transcript）
 // - 音频：GET /api/calls/{call_id}/items/{item_id}/audio（Blob → createObjectURL），
 //   模块级 Map 缓存（audioBlobUrls）复用 + 并发下载合并（audioBlobPending）；
 //   仅切换任务/重置时整体 revoke（releaseAudioBlobs，浮层关闭保留缓存）；
@@ -12,7 +12,7 @@
 //   重建时经 ref 回调捕获快照并暂停，加载完成后按快照补偿已播时长恢复，恢复前
 //   一次性监听 play/pause/seeked 防覆盖用户操作）；条目切换不跨条目恢复
 // - 编辑保存：PUT /api/calls/{id}/items/{item_id}，body {narrative, candidate_name,
-//   fields:[{key,label,value,status,fact_ids,note}]}（完整覆盖语义可清空），
+//   fields:[{key,label,value,status,note}]}（完整覆盖语义可清空），
 //   保存后回读 GET /api/calls/{id}
 // - facts 跳转：点击事实行 → currentTime = start_time 并播放
 // - Markdown 下载：GET .../items/{item_id}/download，文件名解析 filename* → filename
@@ -71,12 +71,10 @@ export interface CallItemSummary {
     label?: string;
     value?: string;
     status?: string;
-    fact_ids?: unknown[];
     note?: string;
   }>;
   facts?: Array<{ content?: string; speaker?: string; ref?: string; start_time?: unknown }>;
   doubts?: string[];
-  guard_warnings?: string[];
   transcript?: string;
 }
 
@@ -448,7 +446,6 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
           label: String(base.label || key),
           value,
           status: String(base.status || "已确认"),
-          fact_ids: base.fact_ids || [],
           note: String(base.note || ""),
         };
       });
@@ -642,15 +639,6 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
                     <pre className="call-transcript">{summary.transcript}</pre>
                   </CallPanel>
                 ) : null}
-                {(summary.guard_warnings || []).length > 0 && (
-                  <CallPanel title={t("callGuardPanel", { count: summary.guard_warnings?.length ?? 0 })}>
-                    <ul className="call-doubt-list">
-                      {(summary.guard_warnings || []).map((warning, warningIndex) => (
-                        <li key={warningIndex}>{warning}</li>
-                      ))}
-                    </ul>
-                  </CallPanel>
-                )}
               </div>
               <div className="call-item-actions">
                 <Button variant="secondary" busy={saving} onClick={() => void handleSave()}>

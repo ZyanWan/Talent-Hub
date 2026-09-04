@@ -45,7 +45,6 @@ python debug\prompt_ab\eval_prompt.py --compare-system debug\prompt_ab\snapshot_
 | `spectator_phrases` | 旁观转述句式命中（如"候选人表示""HR 询问"） | 0（记录必须是 HR 本人口径） |
 | `speaker_leak` / `timestamp_leak` | 转写说话人标记 / 时间戳泄漏到正文 | 0 |
 | `markdown_leak` | Markdown 语法泄漏 | 0 |
-| `guard_warnings` | 事实守卫警告（AI 引用与转写不符，被降级处理） | 越少越好 |
 | `generic_praise_hits` | 泛化拔高评价命中（如"整体较好""沟通顺畅"） | 0 |
 | `soft_skill_polarity` | 软性分点正/负/中性计数（负面优先分类） | 结合用例画像判断 |
 | `doubts` | 待确认事项 | 结合用例画像判断 |
@@ -55,5 +54,5 @@ python debug\prompt_ab\eval_prompt.py --compare-system debug\prompt_ab\snapshot_
 ## 已知注意事项
 
 - 模型偶发不返回可解析 JSON（脚本内置 3 次重试），若最终失败会抛 `LLMError`，重跑该用例即可；
-- 弱模型的跨句拼接引用可能触发 `guard_warnings` 并被守卫降级为"含糊"表述，属守卫机制正常工作，非 prompt 回归；
+- 事实引用只用于录音定位，不影响正文、招聘判断和字段状态；
 - 测试产物（`*_result.json/md`、快照 txt）验证完成后应清理，本目录长期只保留脚本与用例语料。

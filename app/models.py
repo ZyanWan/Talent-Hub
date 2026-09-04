@@ -171,7 +171,6 @@ class CandidateEvaluation(BaseModel):
 class CallFact(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    id: str = ""
     content: str = ""
     speaker: Literal["HR", "候选人", "未知"] = "未知"
     ref: str = ""
@@ -186,40 +185,21 @@ class CallField(BaseModel):
     label: str = ""
     value: str = "通话未提及"
     status: Literal["已确认", "含糊", "通话未提及"] = "通话未提及"
-    fact_ids: list[str] = Field(default_factory=list)
     note: str = ""
-
-
-class CallRemarkBullet(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    text: str = ""
-    fact_ids: list[str] = Field(default_factory=list)
 
 
 class CallRemarkSection(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    id: str = ""
     title: str = ""
-    bullets: list[CallRemarkBullet] = Field(default_factory=list)
+    bullets: list[str] = Field(default_factory=list)
 
     @field_validator("bullets", mode="before")
     @classmethod
     def coerce_bullets(cls, value):
         if not isinstance(value, list):
             return value
-        return [
-            {"text": item, "fact_ids": []} if isinstance(item, str) else item
-            for item in value
-        ]
-
-
-class CallSoftSkillObservation(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    text: str = ""
-    fact_ids: list[str] = Field(default_factory=list)
+        return [item.get("text", "") if isinstance(item, dict) else item for item in value]
 
 
 class CallQA(BaseModel):
@@ -235,15 +215,13 @@ class CallSummary(BaseModel):
     candidate_name: str = ""
     call_date: str = ""
     remark_sections: list[CallRemarkSection] = Field(default_factory=list)
-    soft_skill_summary: list[CallSoftSkillObservation] = Field(default_factory=list)
+    soft_skill_summary: list[str] = Field(default_factory=list)
     soft_skill_summary_title: str = ""
     narrative: str = ""
     fields: list[CallField] = Field(default_factory=list)
     facts: list[CallFact] = Field(default_factory=list)
     qa_records: list[CallQA] = Field(default_factory=list)
-    extra_info: list[str] = Field(default_factory=list)
     doubts: list[str] = Field(default_factory=list)
-    guard_warnings: list[str] = Field(default_factory=list)
     transcript: str = ""
 
     @field_validator("soft_skill_summary", mode="before")
@@ -252,10 +230,17 @@ class CallSummary(BaseModel):
         if value is None:
             return []
         if isinstance(value, str):
-            return [{"text": value, "fact_ids": []}] if value.strip() else []
+            return [value] if value.strip() else []
         if isinstance(value, list):
-            return [
-                {"text": item, "fact_ids": []} if isinstance(item, str) else item
-                for item in value
-            ]
+            result = []
+            for item in value:
+                if isinstance(item, str):
+                    result.append(item)
+                    continue
+                if isinstance(item, dict):
+                    judgment = str(item.get("judgment") or item.get("text") or "").strip()
+                    basis = str(item.get("basis") or "").strip()
+                    if judgment:
+                        result.append(f"{judgment}；{basis}" if basis else judgment)
+            return result
         return value

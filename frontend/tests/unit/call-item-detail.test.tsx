@@ -1,6 +1,6 @@
 // =====================================================================
 // 电话条目详情浮层（src/views/CallItemDetail.tsx）渲染与交互测试（jsdom）。
-// 覆盖：详情渲染（narrative/fields/facts/doubts/transcript/guard_warnings）、
+// 覆盖：详情渲染（narrative/fields/facts/doubts/transcript）、
 // 音频加载（Blob → createObjectURL、缓存复用与并发下载合并、releaseAudioBlobs
 // revoke、加载失败隐藏播放器 + toast、异常首包自动跳过一次）、轮询重绘播放保持（同一条目复用
 // <audio> 元素，currentTime/playing 不变）与状态往返重建后的快照恢复、
@@ -40,10 +40,9 @@ function doneCall(): CallTask {
         error: null,
         summary: {
           narrative: "候选人表达清晰",
-          fields: [{ key: "k1", label: "岗位匹配度", value: "高", status: "含糊", fact_ids: ["f1"], note: "备注" }],
+          fields: [{ key: "k1", label: "岗位匹配度", value: "高", status: "含糊", note: "备注" }],
           facts: [{ content: "事实内容1", speaker: "张三", ref: "r1", start_time: 12 }],
           doubts: ["疑点内容"],
-          guard_warnings: ["告警内容"],
           transcript: "转写文本",
         },
       },
@@ -55,7 +54,7 @@ function doneCall(): CallTask {
         status: "done",
         progress: 100,
         error: null,
-        summary: { narrative: "", fields: [], facts: [], doubts: [], guard_warnings: [], transcript: "" },
+        summary: { narrative: "", fields: [], facts: [], doubts: [], transcript: "" },
       },
       { id: "i3", audio_file: "王五.m4a", candidate_name: "王五", status: "transcribing", progress: 40, error: null },
     ],
@@ -131,7 +130,7 @@ afterEach(() => {
 });
 
 describe("详情渲染", () => {
-  it("渲染 narrative/fields/facts/doubts/transcript/guard_warnings 与候选人与 meta", async () => {
+  it("渲染 narrative/fields/facts/doubts/transcript 与候选人与 meta", async () => {
     mockServer((url) => {
       if (url.pathname.endsWith("/items/i1/audio")) return Promise.resolve(audioResponse());
       return Promise.resolve(jsonResponse({ ok: true }));
@@ -148,7 +147,6 @@ describe("详情渲染", () => {
     expect(screen.getByText("事实清单")).toBeInTheDocument();
     expect(screen.getByText("疑点清单")).toBeInTheDocument();
     expect(screen.getByText("转写原文")).toBeInTheDocument();
-    expect(screen.getByText("证据校验提示（1）")).toBeInTheDocument();
     // 面板内容
     expect(screen.getByText("岗位匹配度")).toBeInTheDocument();
     expect(screen.getByText("含糊")).toBeInTheDocument();
@@ -156,7 +154,6 @@ describe("详情渲染", () => {
     expect(screen.getByText("事实内容1")).toBeInTheDocument();
     expect(screen.getByText("张三 · 0:12 · r1")).toBeInTheDocument();
     expect(screen.getByText("疑点内容")).toBeInTheDocument();
-    expect(screen.getByText("告警内容")).toBeInTheDocument();
     expect(document.querySelector(".call-transcript")!.textContent).toContain("转写文本");
   });
 });
@@ -367,7 +364,7 @@ describe("编辑保存", () => {
     expect(savedBody).toEqual({
       narrative: "新的整理记录",
       candidate_name: "张三",
-      fields: [{ key: "k1", label: "岗位匹配度", value: "较高", status: "含糊", fact_ids: ["f1"], note: "备注" }],
+      fields: [{ key: "k1", label: "岗位匹配度", value: "较高", status: "含糊", note: "备注" }],
     });
     expect(state.currentCall).toEqual(call); // 回读结果写入全局状态
     expect(onToast).toHaveBeenCalledWith("已保存");

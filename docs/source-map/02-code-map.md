@@ -23,8 +23,8 @@
 | `app/runtime/workbook_contract.py` | 五表名称、表头、枚举和格式契约 | 构建器、校验器、验证、业务输出 |
 | `app/runtime/call_state.py` | 电话条目状态机和中断收敛 | `phone_screening.py`、电话重试和取消 |
 | `app/runtime/speech_to_text.py` | 火山 ASR 请求、音频输入校验、请求参数和转写渲染 | 电话处理器、ASR 验证 |
-| `app/runtime/phone_screening.py` | 电话处理、事实引用守卫、软性素质参考框架注入、三层 narrative 渲染（客观记录/软性表现概述/可选快筛详情）、Markdown | 电话任务状态、摘要文件、前端电话详情 |
-| `app/resources/references/` | 运行时参考规则库：证据规则、Excel/PDF 规则和软性素质框架 | `pipeline.py`、`phone_screening.py`、Prompt 与守卫规则 |
+| `app/runtime/phone_screening.py` | 电话处理、高级招聘专员 prompt、基础结构校验、三层 narrative 渲染（客观记录/综合招聘判断/可选快筛详情）、事实录音定位与 Markdown | 电话任务状态、摘要文件、前端电话详情 |
+| `app/resources/references/` | 运行时参考规则库：证据规则、Excel/PDF 规则和招聘判断参考 | `pipeline.py`、`phone_screening.py`、Prompt |
 | `frontend/src/**` | React+TS 前端：App.tsx（外壳/顶栏/启动）、views/（筛选/电话/简历工作台）、ui/（弹窗与基础组件）、api/client.ts（唯一 API client）、i18n/（messages.ts 唯一消息源）、router/、state/、customSelect.ts | 后端路由、JSON 字段、状态枚举、契约与单元测试 |
 | `launcher.py` | PyInstaller 薄启动入口 | `app.main.main`、打包配置 |
 | `start-app.bat` | Windows 一键启动：后端（launcher.py）+ 前端监听（`vite build --watch` 自动重建 dist） | `launcher.py`、`frontend/` 构建 |
@@ -172,12 +172,12 @@
     遮罩通过 React Portal 直接挂到 `document.body`，不受 `.phone-view` 淡入动画层叠上下文限制。**弹窗类别**：编辑类，仅「关闭按钮 + ESC」退出，点遮罩不关闭（防止误触打断录音/丢未保存输入）；
     尺寸由 `.call-item-detail` 独立控制（最大 1400×900px，桌面端打开后高度不随折叠面板开合变化，660px 及以下铺满视口），不改变其他 `.preview-dialog`；
     1080px 及以上将候选人/播放器/narrative 与折叠结果面板分为左右两栏，左栏在详情内容滚动时吸顶，窄屏保持单栏；narrative 禁止拖拽调整尺寸，桌面端固定高度 500px、660px 及以下固定为 240px；
-    详情内容区为纵向滚动容器并始终预留滚动条槽位，折叠面板开合不会改变内容宽度。**详情内容**：候选人名输入框 / `<audio class="call-audio">` 播放器 / narrative textarea / 可折叠面板（`<details class="call-panel">`：fields 字段速览（label + value 多行表单，自动换行并随内容增高，不显示字段内部滚动条）、facts 事实清单（content/speaker/ref/start_time，无时间点置禁用态）、doubts 疑点清单、transcript 转写原文 `pre`、guard_warnings 证据校验提示）；
+    详情内容区为纵向滚动容器并始终预留滚动条槽位，折叠面板开合不会改变内容宽度。**详情内容**：候选人名输入框 / `<audio class="call-audio">` 播放器 / narrative textarea / 可折叠面板（`<details class="call-panel">`：fields 字段速览（label + value 多行表单，自动换行并随内容增高，不显示字段内部滚动条）、facts 事实清单（content/speaker/ref/start_time，无时间点置禁用态）、doubts 疑点清单、transcript 转写原文 `pre`）；
     标题 meta 为 stageLabel + 状态文案。**音频**：`GET /api/calls/{id}/items/{item_id}/audio`（Blob → `createObjectURL`），模块级 `Map` 缓存 `audioBlobUrls`（key `callId:itemId`）复用 + `audioBlobPending` 合并并发下载（重复打开同一条目共用同一请求）；
     缓存跨浮层开关复用，仅切换任务/重置时经 `releaseAudioBlobs()` 整体 revoke（PhoneView 切换任务/重置时调用）；加载失败隐藏播放器并 toast `callAudioLoadFail`（已隐藏不重复提示）；
     媒体元素仅在 `0s` 发生解码错误时将同一 Blob URL 改为 `#t=0.064` 并重新加载一次，跳过不完整的 AAC 首包且避免循环重试。**播放恢复**：对同一 `itemKey` 复用 `<audio>` DOM 节点，轮询重绘不销毁元素，播放位置与播放状态天然保持；
     元素被重建（条目状态往返重挂载）时经 ref 回调在卸载瞬间捕获快照（currentTime/paused/ended + capturedAt）并暂停（防双音），加载完成后按快照补偿「捕获→恢复」已播时长（L1）后 seek+play，恢复前一次性监听 play/pause/seeked，用户已操作播放器则不覆盖（M2）；
-    条目切换不跨条目恢复。**编辑保存**：`PUT /api/calls/{id}/items/{item_id}`，body `{narrative, candidate_name, fields:[{key,label,value,status,fact_ids,note}]}`（完整覆盖语义、字段值可清空，status 缺省回退「已确认」），成功后回读 `GET /api/calls/{id}` 写回 `state.currentCall` 并经 `onSaved` 通知外层；
+    条目切换不跨条目恢复。**编辑保存**：`PUT /api/calls/{id}/items/{item_id}`，body `{narrative, candidate_name, fields:[{key,label,value,status,note}]}`（完整覆盖语义、字段值可清空，status 缺省回退「已确认」），成功后回读 `GET /api/calls/{id}` 写回 `state.currentCall` 并经 `onSaved` 通知外层；
     **facts 跳转**：点击事实行 → `currentTime = start_time` 并播放（音频未就绪时先加载，readyState/loadedmetadata 后执行）；**Markdown 下载**：`GET .../items/{item_id}/download`（Blob，文件名解析 `filename*` → `filename` → 回退 `{itemId}.md`）。
     **非 done 条目**：转写中/整理中/failed 在详情内展示进度（`transcribing|summarizing` 加活动条纹）与错误文案，不加载音频（本实现保留浮层展示状态）。语言切换经 `src/i18n` `onChange` 重渲染。
     交互与渲染由 `frontend/tests/unit/call-item-detail.test.tsx` 锁定（15 例，jsdom，不截图：详情渲染、音频 Blob 加载/缓存复用/并发合并/releaseAudioBlobs revoke/失败隐藏与 toast/异常首包单次恢复、轮询重绘播放保持与状态往返快照恢复、保存 PUT body 与回读、facts 跳转、Markdown 下载文件名解析与回退、上/下一个、Portal 挂载与禁遮罩关闭、非 done 进度/错误、语言切换）。

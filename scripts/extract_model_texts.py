@@ -113,7 +113,7 @@ def main() -> None:
         "## 结构纠正追加文本\n",
         block("筛选标准与简历评估", "user suffix", "上一次输出未通过结构校验。请按既定 schema 重新返回完整 JSON。"),
         block("候选人横向对比", "user suffix", "上一次输出未通过结构或业务校验。请覆盖全部候选人并重新返回完整 JSON。"),
-        block("电话初筛整理", "user suffix", "上一次输出未通过结构或事实引用校验。请按既定 schema 重新返回完整 JSON。"),
+        block("电话初筛整理", "user suffix", "上一次输出未通过 JSON 结构校验。请按既定 schema 重新返回完整 JSON，不得省略字段。"),
         "## 开发评测调用\n\n`debug/prompt_ab/eval_prompt.py` 的 `current` 变体复用 SP-05。"
         "`baseline` 变体使用下面的 system message，并复用 SP-05 的 user message 与结构契约。\n",
         block("电话提示 A/B 评测 baseline", "system", baseline_system_prompt(True)),

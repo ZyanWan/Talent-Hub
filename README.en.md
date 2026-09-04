@@ -87,8 +87,8 @@ Currently supported modules — more will follow:
 | Capability | Description |
 | --- | --- |
 | **Batch transcription** | Upload multiple recordings (m4a / wav / mp3 / ogg / opus) powered by Volcano Engine ASR. |
-| **AI summarization** | Produces structured notes, optional fact-linked soft-skill observations, and optional Q&A detail (off by default); no soft-skill judgment is produced without evidence. |
-| **Fact guardrails** | Fields, note bullets, soft-skill observations, and Q&A must trace back to the transcript; unsupported content is downgraded or removed, and field status is visible to HR. |
+| **AI summarization** | Uses a senior-recruiter perspective to produce complete structured notes, open-ended hiring judgments, and optional Q&A detail (off by default). |
+| **Complete result delivery** | Code validates JSON and required structure only. It does not delete model-produced notes or judgments or change field status based on citations; citations are used only for audio positioning. |
 | **Manual review & download** | After per-candidate review, export a Markdown record for each candidate. |
 
 ### Feishu push
@@ -257,4 +257,4 @@ The script creates `dist/TalentHub.app` and `release/<version>/macos/TalentHub-m
 
 ## Limitations
 
-Screening and phone-summarization accuracy depends on JD clarity, resume/recording parsability, model and ASR capability, service stability, and role criteria. The system reduces unsupported judgments via evidence checks but cannot promise zero errors; final hiring decisions must be made by authorized personnel.
+Screening and phone-summarization accuracy depends on JD clarity, resume/recording parsability, model and ASR capability, service stability, and role criteria. Resume screening uses evidence checks for tiering; phone summaries use a senior-recruiter prompt, preserve the complete model result, and remain subject to HR review. The system cannot promise zero errors, and final hiring decisions must be made by authorized personnel.

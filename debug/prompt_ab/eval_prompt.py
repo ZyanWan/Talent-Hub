@@ -7,7 +7,7 @@
     python eval_prompt.py --case call-summary --save-current-system baseline_system.txt
     python eval_prompt.py --case call-summary --compare-system baseline_system.txt --a-name before --b-name after
 
-产出：<out>_result.json（守卫后 CallSummary）、<out>_result.md（Markdown 档案）、控制台质量报告。
+产出：<out>_result.json（模型 CallSummary）、<out>_result.md（Markdown 档案）、控制台质量报告。
 模型配置读取本机 SettingsStore（不打印任何密钥）。
 """
 
@@ -33,7 +33,6 @@ from app.config import SettingsStore  # noqa: E402
 from app.llm import OpenAICompatibleClient  # noqa: E402
 from app.models import CallSummary  # noqa: E402
 from app.runtime.phone_screening import (  # noqa: E402
-    apply_call_guard,
     render_call_summary_markdown,
     render_remark_narrative,
     summarize_system_prompt as new_system_prompt,
@@ -74,7 +73,7 @@ Remark 写作要求：
 - 所有字段文本（含 title、bullets、soft_skill_summary、note、content 等）使用纯中文表述，严禁出现 #、*、**、_、`、~~、-（作为列表或强调标记时）等任何 Markdown 标记或强调符号；标题、章节名直接写文字本身，列表项由程序侧统一渲染。
 
 软性表现概述（有证据才输出）：
-- soft_skill_summary 可以为空；每点必须引用 facts 中的有效事实编号。
+- soft_skill_summary 可以为空；每点是一句完整判断。
 - 它不是事实摘要、经历复述或优点评语，必须在同一句中同时包含有限判断和来自通话回答的具体依据。
 - 优先覆盖被问到且有有效回答的软性维度，同时保留积极信号与非积极信号；非积极信号包括中性、含糊、局限、矛盾或风险表现，不要求写成正向结论，也不要用"未发现风险"替代具体观察。
 - 不要把普通应答、礼貌配合、能完成基本介绍拔高为明显优点；不要使用"整体较好""表现不错""沟通顺畅""暂未发现明显风险"等泛化评价。
@@ -85,8 +84,7 @@ Remark 写作要求：
 {soft_skill_framework}
 
 内部字段速览（fields/facts）用于覆盖性检查：维度未问到则 status 填"通话未提及"，问到了但含糊不清则填"含糊"。
-每个内部字段和事实可附一条"依据转写原文原句"的短线索（ref）：必须逐字引用输入转写文本中的连续原句片段
-（含 ASR 原文错字，不得修正、不得改写、不得概括）；程序以输入转写文本为基准核对该线索，只用于程序侧核对，不得出现在说明文字里。
+事实 ref 只用于录音定位，使用输入转写中的连续短句，不得出现在说明文字里。
 不要输出思维过程，只输出符合要求的 JSON 对象。所有字段使用简体中文。"""
 
 BASELINE_QA_RECORDS_PROMPT = """可选快筛详情（qa_records）：
@@ -192,7 +190,7 @@ def quality_report(summary: CallSummary, transcript: str, elapsed: float) -> dic
     for f in summary.fields:
         field_status[f.status] = field_status.get(f.status, 0) + 1
     bullets_total = sum(len(s.bullets) for s in summary.remark_sections)
-    soft_points = [p.text for p in summary.soft_skill_summary if p.text.strip()]
+    soft_points = [point for point in summary.soft_skill_summary if point.strip()]
     generic_praise_hits = [p for p in GENERIC_PRAISE_PATTERNS if p in narrative]
     return {
         "elapsed_sec": round(elapsed, 1),
@@ -205,7 +203,6 @@ def quality_report(summary: CallSummary, transcript: str, elapsed: float) -> dic
         "soft_skill_summary_points": len(soft_points),
         "soft_skill_polarity": classify_soft_skill_points(soft_points),
         "generic_praise_hits": generic_praise_hits,
-        "guard_warnings": summary.guard_warnings,
         "spectator_phrases": spectator_hits,
         "speaker_leak": speaker_hits,
         "timestamp_leak": len(ts_hits),
@@ -302,7 +299,6 @@ def run_call_summary_variant(
             summary.qa_records = []
         summary.transcript = transcript
         summary.candidate_name = (summary.candidate_name or "").strip() or candidate_name
-        summary = apply_call_guard(summary, transcript)
         summary = validate_call_structure(summary)
         summary.narrative = render_remark_narrative(summary)
     finally:

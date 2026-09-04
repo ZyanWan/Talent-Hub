@@ -147,10 +147,9 @@ export function callItem(overrides: Partial<CallItem> = {}): CallItem {
     error: null,
     summary: {
       narrative: "候选人表达清晰，具备岗位所需经验。",
-      fields: [{ key: "k1", label: "岗位匹配度", value: "高", status: "满足", fact_ids: [], note: "" }],
+      fields: [{ key: "k1", label: "岗位匹配度", value: "高", status: "满足", note: "" }],
       facts: [],
       doubts: [],
-      guard_warnings: [],
       transcript: "",
     },
     ...overrides,
