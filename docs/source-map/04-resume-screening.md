@@ -39,20 +39,20 @@ frontend/src/views/ScreeningView.tsx 创建任务
 ```text
 POST /api/jobs/<id>/start
   → EvaluationEngine.start()
-  → 无标准或 criteria_jd_file != jd_file
+  → criteria_ready = bool(criteria_file) and (not criteria_jd_file or criteria_jd_file == jd_file)
+  → criteria_ready=false 时生成标准
   → job: queued / 生成岗位筛选标准
   → 后台 _prepare()
-     → extract_document(JD)
+     → extract_document(jd_path, settings, resume=False)
      → 保存 parsed/jd.txt
-     → criteria_prompt()
-     → OpenAICompatibleClient.chat_json()
-     → ScreeningCriteria.model_validate()
+     → _validated_call(criteria_system_prompt(), criteria_user_prompt(jd_text), ScreeningCriteria)
+        └─ OpenAICompatibleClient.chat_json() → ScreeningCriteria.model_validate()
      → 筛选标准.json
      → <岗位名>-简历筛选标准.md
      → job: waiting / 等待校准筛选标准
 ```
 
-这是强制两阶段流程。首次 `/start` 不评估简历。前端看到 `waiting` 后请求 `/criteria-json` 并进入校准页。
+这是强制两阶段流程。首次 `/start` 不评估简历。前端看到 `waiting` 后请求 `/criteria-json` 并进入校准页。标准生成只有一个业务阶段；单次调用中的传输错误最多尝试 3 次，JSON 或结构校验失败时最多追加一次带纠正要求的调用。
 
 ### 6.3 HR 校准
 
@@ -66,7 +66,9 @@ GET /api/jobs/<id>/criteria-json
   → 再次 POST /start
 ```
 
-前端编辑器在本地状态中保留 `job_title`、`essence`、全部列表字段和规则字段；提交时带回完整标准。后端还会把提交字段覆盖到已保存 JSON 上，未提交字段不会被默认值静默抹掉。`ScreeningCriteria` 在每次校验时删除以年龄、性别、民族、籍贯、婚姻或生育状况形成的决策规则，并为缺失或重复的规则 ID 生成任务内唯一 ID。增加或删除 `ScreeningCriteria` 字段时，必须明确它应当：
+前端编辑器保留 `job_title`、`essence`、全部列表字段和规则字段，并在提交时带回完整标准。后端把提交字段合并到已保存 JSON，因此未提交字段保持原值。
+
+`ScreeningCriteria` 在每次校验时删除以年龄、性别、民族、籍贯、婚姻或生育状况形成的决策规则，并为缺失或重复的规则 ID 生成任务内唯一 ID。增加或删除 `ScreeningCriteria` 字段时，必须明确它应当：
 
 - 被前端编辑；
 - 只由后端维护但往返保留；
@@ -84,19 +86,19 @@ POST /start（标准已就绪）
   → 对未完成 resume_files 建立候选人线程池
   → 每份简历 _evaluate_one()
      → extract_document()
-     → evaluation_prompt(criteria, resume_text)
-     → chat_json(attempts=2)：单次候选人请求按配置超时，传输错误最多尝试 2 次
-     → CandidateEvaluation.model_validate()
-     → apply_evidence_guard(resume_text, evaluation)
-     → apply_hard_gate_guard(criteria, resume_text, evaluation)
-     → 单次模型调用完成评估，不再二次复核
+     → _validated_call(evaluation_system_prompt(), evaluation_user_prompt(criteria, resume_text, source_file), CandidateEvaluation, request_attempts=2)
+        └─ OpenAICompatibleClient.chat_json() → CandidateEvaluation.model_validate()
+     → apply_evidence_guard(evaluation, resume_text)
+     → apply_hard_gate_guard(evaluation, criteria, resume_text)
 ```
+
+每位候选人只有一个评估业务阶段，不执行独立语义复核。单次调用按配置超时，传输错误最多尝试 2 次；JSON 或结构校验失败时最多追加一次带纠正要求的调用。
 
 文档解析的交叉路径：
 
 ```text
 pipeline.extract_document()
-  ├─ PDF → pypdfium2 页数上限检查（MAX_PDF_PAGES=100）→ extract_file(pypdf → pdfplumber) → 不足时 Tesseract OCR
+  ├─ PDF → pypdfium2 计页成功时检查上限（MAX_PDF_PAGES=100）→ extract_file(pypdf → pdfplumber) → 不足时 Tesseract OCR
   ├─ DOCX → ZIP 中 word/document.xml（XML 内容上限 20 MB）
   ├─ TXT/MD → 多编码读取
   └─ 图片 → Tesseract OCR
@@ -104,7 +106,9 @@ pipeline.extract_document()
 
 ### 6.5 证据守卫与分级
 
-模型输出的 `CandidateEvaluation` 不是最终结果。`apply_evidence_guard()` 检查每个证据维度的“事实锚点”：`quote` 通过原文规范化连续子串比对，或 `summary` 含可命中原文的具体片段（≥4 字符连续片段 / 4 位以上数字 / 与原文共享含汉字二元组，允许基于完整经历的合理推断）。维度判定的转述容忍下限为 6 个二元组（拦截仅凭简历通用词转述、无具体名词的判定），硬性门槛注记保留 4 个二元组的宽松档（其推断以教育时间线等常规路径为主）。
+模型输出的 `CandidateEvaluation` 不是最终结果。`apply_evidence_guard()` 检查每个证据维度的“事实锚点”。`quote` 必须通过原文规范化连续子串比对；`summary` 可通过≥4 字符连续片段、4 位以上数字，或与原文共享含汉字二元组形成锚点。这允许基于完整经历的合理推断。
+
+维度判定的转述容忍下限为 6 个二元组，用于拦截仅凭简历通用词转述、无具体名词的判定。硬性门槛注记使用 4 个二元组的宽松档，其推断以教育时间线等常规路径为主。
 
 ```text
 模型状态“匹配/不匹配”
@@ -134,7 +138,7 @@ pipeline.extract_document()
 
 硬性门槛守卫（`apply_hard_gate_guard`）：
 
-- `hard_gate` 与候选人评估在同一次模型调用中输出：按 `ScreeningCriteria.hard_requirements` 逐条给出 `met / unmet / unknown`，`met` 与 `unmet` 必须有原文事实支撑：`quote` 通过原文校验，或 `note` 含事实锚点（允许基于教育时间线、连续工作经历等做高概率推断，如“学制连续完整的本科可推断全日制”）。
+- `hard_gate` 与候选人评估在同一轮模型输出中给出：按 `ScreeningCriteria.hard_requirements` 逐条输出 `met / unmet / unknown`，`met` 与 `unmet` 必须有原文事实支撑：`quote` 通过原文校验，或 `note` 含事实锚点（允许基于教育时间线、连续工作经历等做高概率推断，如“学制连续完整的本科可推断全日制”）。
 - 守卫校验：`met/unmet` 引文与 note 均无事实锚点 → 降为 `unknown`；criteria 中的硬性门槛未被模型判定 → 按 `unknown` 补齐并告警（防止模型漏判导致硬门槛失守）。
 - 程序最终等级同时使用硬条件状态和四个核心维度状态；模型输出的 `conclusion` 只作为结构输入，不拥有最终决定权。
 - 修改硬性门槛结构时必须同步：criteria prompt、评估 prompt、`apply_hard_gate_guard()`、Excel 总表「硬性门槛判定」列、硬性门槛降档验证。
@@ -169,22 +173,24 @@ pipeline.extract_document()
   → job: completed / progress=100（推送错误并入本次 update 的 errors）
 ```
 
-横向比较最多接收 20 位 A/B 候选人。模型输入是带“不可信数据”边界的结构化 JSON，包含完整筛选规则、硬条件结果、证据维度和有效加分项命中。模型给出同等级内部比较理由；程序强制 A 整体排在 B 前并重新编号，C 不进入比较。
+横向比较最多接收 20 位 A/B 候选人。模型输入是带“不可信数据”边界的结构化 JSON，包含岗位名、岗位本质、硬门槛、A/B/C 规则、负向与加分信号，以及候选人的硬条件结果、证据维度和有效加分项命中。这是筛选规则子集，不包含 `ScreeningCriteria` 的全部字段。
 
-恢复依据包括：
+模型给出同等级内部比较理由。程序强制 A 整体排在 B 前并重新编号，C 不进入比较。
 
-- 当前 JD 与生成标准时的 JD 一致；
-- 已保存简历哈希与当前未冲突；
-- `评估结果.json` 可用；
-- 结果中的 `source_file` 用于跳过同名已完成简历；当前实现不额外过滤已从任务中移除的旧结果。
+可复用结果的判定依据包括：
 
-修改结果文件名、`results_meta`、`source_file` 或检查点格式时，必须为老任务恢复考虑兼容路径，并运行断点续跑与追加简历验证。
+- JD 记录优先取 `results_meta.jd_file`，缺失时取 `criteria_jd_file`；取到的值必须与当前 `jd_file` 一致，两者均缺失时此项不阻止复用；
+- `results_meta.resume_hashes` 存在时，其记录与当前简历哈希不冲突；
+- `评估结果.json` 和 `筛选标准.json` 存在，且评估结果可解析为非空列表；
+- 结果中的 `source_file` 用于跳过同名已完成简历；复用时不按当前 `resume_files` 反向过滤结果集合。
+
+修改结果文件名、`results_meta`、`source_file` 或检查点格式时，必须兼容缺少新增元数据字段的持久化任务，并运行断点续跑与追加简历验证。
 
 ## 7. 简历任务状态机
 
 ```text
 draft
-  │ start（缺标准或 JD 已变化）
+  │ start（criteria_ready=false）
   ▼
 queued ──后台启动──> running（生成标准）
                          │
@@ -208,19 +214,19 @@ failed / cancelled / completed
 
 | 状态 | 后端含义 | 前端行为 |
 | --- | --- | --- |
-| `draft` | 等待 JD、简历或首次启动 | 创建/历史视图 |
+| `draft` | 等待 JD、简历或首次启动 | 创建/任务记录视图 |
 | `queued` | 后台任务已排队 | 显示进度并轮询 |
 | `running` | 生成标准或评估中 | 显示取消并轮询 |
 | `waiting` | 等待 HR 校准标准 | 打开标准编辑器，停止轮询 |
 | `completed` | Excel 和结果已完成 | 结果页、追加简历、预览、下载；单份失败信息仍在结果页展示 |
-| `failed` | 阶段失败或上次运行中断 | 有 `results` 时展示已保留候选人和重新开始入口，并隐藏下载、追加、改标准和通知；无结果时显示普通错误页 |
+| `failed` | 阶段失败，或启动检查将未收敛运行态标记为中断 | 有 `results` 时展示已保留候选人和重新开始入口，并隐藏下载、追加、改标准和通知；无结果时显示普通错误页 |
 | `cancelled` | 用户取消并完成收敛 | 显示重试 |
 
-新增或重命名状态时，必须同步：引擎状态转换、仓储归档限制、路由冲突判断、前端 `schedulePoll()`、进度按钮、历史菜单、验证。
+新增或重命名状态时，必须同步：引擎状态转换、仓储归档限制、路由冲突判断、前端 `schedulePoll()`、进度按钮、任务记录菜单和验证。
 
-历史侧栏通过 `HistoryMutation` 把删除身份或归档/恢复后的服务端摘要提交给 `App`。事件命中 `state.currentJob` 时，删除会清除 `talentHub.lastJob`、使在途打开请求失效并回到初始页；归档与恢复会把摘要合并到当前完整任务，使追加简历、重试和修改标准等操作立即按最新 `archived_at` 显隐。非当前任务的变更只刷新侧栏，不改变主区域。
+任务记录侧栏通过 `HistoryMutation` 把删除身份或归档/恢复后的服务端摘要提交给 `App`。事件命中 `state.currentJob` 时，删除会清除 `talentHub.lastJob`、使在途打开请求失效并回到初始页。归档与恢复会把摘要合并到当前完整任务，使追加简历、重试和修改标准等操作立即按最新 `archived_at` 显隐。非当前任务的变更只刷新侧栏，不改变主区域。
 
-历史任务打开请求使用递增序号。只有最后一次用户选择的响应可以写入 `state.currentJob` 和 `talentHub.lastJob`；迟到响应被丢弃，最后一次请求失败时清空当前任务并回到初始页。
+任务记录打开请求使用递增序号。只有最后一次用户选择的响应可以写入 `state.currentJob` 和 `talentHub.lastJob`。迟到响应被丢弃；最后一次请求失败时，前端清空当前任务并回到初始页。
 
 ## 8. Excel 数据流与跨表契约
 
@@ -245,7 +251,7 @@ CandidateEvaluation[] + ScreeningCriteria
 - 证据表必须与总表候选人一致。
 - B 类必须在电话确认问题表中有问题。
 - 推荐名单只能包含 A 类，并且不能遗漏任何 A 类。
-- 联系电话、邮箱来自简历原文证据，缺失时输出“无”。
+- prompt 要求联系电话和邮箱逐字取自简历原文，程序不做二次来源校验；空值在推荐名单中输出“无”。
 
 修改工作簿时的同步清单：
 

@@ -60,7 +60,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 # 5. 文档同步（Doc Sync）
 
-**功能变更与文档更新必须同时完成，禁止先改代码后补文档。** 用户依赖文档配置与使用功能；文档落后于代码会直接造成困惑（经验来源：飞书推送上线时，用户按过时/缺失的文档找不到配置入口）。
+**功能变更与文档更新必须同时完成，禁止先改代码后补文档。** 用户依赖文档配置与使用功能；文档落后于代码会直接造成困惑。
 
 - 新增模块、能力或外部服务 → 同步更新 `README.md` / `README.en.md`（当前能力、技术特性、配置章节）与 `APP_GUIDE.md`（面向用户的操作步骤）。
 - 修改代码结构、数据流、API、配置字段或状态机 → 同步更新 `docs/SOURCE_MAP.md` 入口及 `docs/source-map/` 中对应专题（代码地图、运行时拓扑、数据流、API 契约、变更影响矩阵）。

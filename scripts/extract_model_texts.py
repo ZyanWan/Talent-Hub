@@ -1,4 +1,4 @@
-"""Generate a complete inventory of text sent to model endpoints."""
+"""Generate the inventory of text sent by production model calls."""
 
 from __future__ import annotations
 
@@ -20,10 +20,6 @@ from app.pipeline import (  # noqa: E402
 from app.runtime.phone_screening import (  # noqa: E402
     summarize_system_prompt,
     summarize_user_prompt,
-)
-from debug.prompt_ab.eval_prompt import (  # noqa: E402
-    baseline_system_prompt,
-    baseline_user_prompt,
 )
 
 
@@ -76,9 +72,9 @@ def main() -> None:
 
     sections = [
         "# Talent Hub 模型传输文本清单\n",
-        "本文件由 `scripts/extract_model_texts.py` 从当前运行时代码生成。固定文本保持原样；"
+        "本文件由 `scripts/extract_model_texts.py` 从当前生产代码生成。固定文本保持原样；"
         "`{{...}}` 表示请求时替换的业务数据。前端不直接调用模型，火山 ASR 参数不属于自然语言 messages。\n",
-        "## 请求封装\n\n所有生产和评测调用都通过 `OpenAICompatibleClient.chat_json()` 发送：\n\n"
+        "## 请求封装\n\n所有生产调用都通过 `OpenAICompatibleClient.chat_json()` 发送：\n\n"
         "```json\n{\n  \"model\": \"{{MODEL}}\",\n  \"temperature\": 0,\n"
         "  \"response_format\": {\"type\": \"json_object\"},\n  \"messages\": [\n"
         "    {\"role\": \"system\", \"content\": \"{{SYSTEM_TEXT}}\"},\n"
@@ -114,16 +110,6 @@ def main() -> None:
         block("筛选标准与简历评估", "user suffix", "上一次输出未通过结构校验。请按既定 schema 重新返回完整 JSON。"),
         block("候选人横向对比", "user suffix", "上一次输出未通过结构或业务校验。请覆盖全部候选人并重新返回完整 JSON。"),
         block("电话初筛整理", "user suffix", "上一次输出未通过 JSON 结构校验。请按既定 schema 重新返回完整 JSON，不得省略字段。"),
-        "## 开发评测调用\n\n`debug/prompt_ab/eval_prompt.py` 的 `current` 变体复用 SP-05。"
-        "`baseline` 变体使用下面的 system message，并复用 SP-05 的 user message 与结构契约。\n",
-        block("电话提示 A/B 评测 baseline", "system", baseline_system_prompt(True)),
-        block(
-            "电话提示 A/B 评测 baseline",
-            "user",
-            baseline_user_prompt("{{TRANSCRIPT}}", "{{CANDIDATE_NAME}}", include_qa_records=True),
-        ),
-        "### 用户指定 system 文件变体\n\n使用 `--compare-system <path>` 时，文件的 UTF-8 全文原样成为"
-        " A 变体的 system message；其内容由运行命令决定，仓库无法静态展开。user message 仍为 SP-05。\n",
         "## 动态数据与长度分支\n\n"
         "- JD 不超过 60,000 字符时全文传输；超限时保留前 45,000 和后 15,000 字符，并插入"
         " `[中间内容因超长省略]`。\n"

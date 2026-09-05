@@ -9,15 +9,15 @@
 Talent Hub 是一个本机运行的 Python/FastAPI 招聘工作台，前端为 React + TypeScript（Vite 构建，构建产物 `frontend/dist` 由 FastAPI 托管）。它包含两条主要业务链路：
 
 1. 简历筛选：JD、简历上传、标准生成与人工校准、候选人评估、证据校验、硬性门槛程序化过滤、A/B/C 分级、Excel 交付和候选人横向对比。
-2. 电话确认：录音上传、火山引擎 ASR、AI 单次结构化整理（含动态 Remark、软性素质评价和可选快筛问答）、三层整理记录 narrative、事实引用守卫、人工编辑和 Markdown 下载。软性素质评价由 Prompt 约束并由 HR 人工复核，不经过独立的程序化引用守卫。
+2. 电话确认：录音上传、火山引擎 ASR、AI 结构化整理（含动态 Remark、软性素质评价和可选快筛问答）、三层整理记录 narrative、事实引用录音定位、人工编辑和 Markdown 下载。整理只有一个业务阶段，结构失败时可追加一次纠正调用；事实引用只用于尝试定位录音时间，业务内容由 HR 复核。
 
 系统边界：
 
 - HTTP 服务只监听 `127.0.0.1`。
 - 所有 `/api/` 请求必须携带当前进程生成的本地会话令牌。
 - Windows 上模型 API Key、ASR API Key 和飞书签名密钥使用当前用户的 DPAPI 加密；macOS 上通过环境变量提供敏感密钥。
-- 简历、录音、解析文本和产物保存在本机数据目录，不写入源码目录。
-- 模型输出不是直接真相；简历与电话链路均有原文证据校验和人工复核边界。
+- JD、原始简历、录音、电话转写和产物保存在本机数据目录；解析后的简历文本仅在“保留解析文本”开启时保存。默认数据目录位于源码目录之外，自定义 `TALENT_HUB_DATA_DIR` 或 `--data-dir` 时由使用者选择位置。
+- 模型输出不是直接真相；简历链路执行原文证据校验，电话链路执行结构校验和事实引用录音定位，两条链路均保留人工复核边界。
 - Excel 是正式交付产物，必须符合固定五表契约并通过安全校验。
 
 ## 3. 运行时总拓扑
@@ -44,7 +44,7 @@ FastAPI app/main.py
   └─ artifact_preview.py ───────── Markdown / XLSX 限量预览
 ```
 
-这里没有数据库。`job.json`、`record.json`、结果 JSON 和文件目录共同构成持久化状态，因此修改字段时不能只看 Pydantic 模型或 API；还要考虑旧 JSON 的加载、恢复逻辑和前端消费。
+这里没有数据库。`job.json`、`record.json`、结果 JSON 和文件目录共同构成持久化状态，因此修改字段时不能只看 Pydantic 模型或 API；还要考虑已持久化 JSON 的加载、恢复逻辑和前端消费。
 
 ## 4. 启动与本地会话数据流
 
@@ -63,8 +63,8 @@ launcher.py 或 python -m app.main
   → 装配 SettingsStore / repositories / engines
   → Uvicorn 绑定 127.0.0.1
   → GET / 注入 app_token 到 HTML meta
-  → 前端 main.tsx 挂载 React App → bootstrap()
-  → GET /api/bootstrap，携带 X-App-Token
+  → 前端 main.tsx 挂载 React App
+  → App 启动 effect 请求 GET /api/bootstrap，携带 X-App-Token
 ```
 
 交叉影响：
@@ -81,13 +81,13 @@ launcher.py 或 python -m app.main
 - 配置结构：`AppSettings`。
 - 应用版本号：`app/__init__.py` 的 `__version__`（`packaging/version_info.txt` 为构建时派生，`packaging/talent-hub.iss` 通过构建参数接收版本）。
 - 简历和电话业务结构：`app/models.py`。
-- 电话最终摘要：首轮守卫后的 `CallSummary`；人工编辑以 `PUT /api/calls/<id>/items/<item_id>` 覆盖，编辑后的值仍持久化到同一 `summaries/*.json`。
+- 电话最终摘要：通过 Pydantic 与必填结构校验、并尝试附加事实引用录音时间的 `CallSummary`；人工编辑以 `PUT /api/calls/<id>/items/<item_id>` 覆盖，编辑值持久化到同一 `summaries/*.json`。
 - 电话事实引用身份：`CallFact.id`。
 - Excel 结构：`workbook_contract.py`。
 - Job 真实持久化状态：每个任务的 `job.json`，结果详情由 `评估结果.json` 补充。
 - Call 真实持久化状态：每个任务的 `record.json`，摘要详情由 `summaries/*.json` 补充。
 - 状态转换：简历由 `EvaluationEngine` 控制，电话条目由 `call_state.py` 和 `CallProcessor` 控制。
-- 前端当前视图：`frontend/src/state/index.ts` 的 `state`，但服务端任务对象才是跨重启事实来源。
+- 前端视图生命周期：`frontend/src/router/index.ts` 的模块内 `current`；`App.tsx` 的 React `view` 状态控制当前 section 展示。服务端任务对象是跨重启事实来源。
 - 正式筛选交付：通过 `validate_workbook_detailed()` 的 Excel 文件。
 
 如果同一规则在多处出现，不要只改其中一处；先判断哪一处是事实来源，其余位置是映射、校验还是展示。
