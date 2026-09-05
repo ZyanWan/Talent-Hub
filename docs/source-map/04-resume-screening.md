@@ -106,7 +106,7 @@ pipeline.extract_document()
 
 ### 6.5 证据守卫与分级
 
-模型输出的 `CandidateEvaluation` 不是最终结果。`apply_evidence_guard()` 检查每个证据维度的“事实锚点”。`quote` 必须通过原文规范化连续子串比对；`summary` 可通过≥4 字符连续片段、4 位以上数字，或与原文共享含汉字二元组形成锚点。这允许基于完整经历的合理推断。
+模型输出的 `CandidateEvaluation` 不是最终结果。`apply_evidence_guard()` 检查每个证据维度的“事实锚点”。`quote` 必须为字符串，模型输出 `null` 时后端会兼容为空字符串；有效 `quote` 必须通过原文规范化连续子串比对，`summary` 可通过≥4 字符连续片段、4 位以上数字，或与原文共享含汉字二元组形成锚点。这允许基于完整经历的合理推断。
 
 维度判定的转述容忍下限为 6 个二元组，用于拦截仅凭简历通用词转述、无具体名词的判定。硬性门槛注记使用 4 个二元组的宽松档，其推断以教育时间线等常规路径为主。
 
@@ -141,6 +141,7 @@ pipeline.extract_document()
 - `hard_gate` 与候选人评估在同一轮模型输出中给出：按 `ScreeningCriteria.hard_requirements` 逐条输出 `met / unmet / unknown`，`met` 与 `unmet` 必须有原文事实支撑：`quote` 通过原文校验，或 `note` 含事实锚点（允许基于教育时间线、连续工作经历等做高概率推断，如“学制连续完整的本科可推断全日制”）。
 - 守卫校验：`met/unmet` 引文与 note 均无事实锚点 → 降为 `unknown`；criteria 中的硬性门槛未被模型判定 → 按 `unknown` 补齐并告警（防止模型漏判导致硬门槛失守）。
 - 程序最终等级同时使用硬条件状态和四个核心维度状态；模型输出的 `conclusion` 只作为结构输入，不拥有最终决定权。
+- 模型对可选字段显式返回 `null` 时，接收端将其归一为该字段的语义默认（如 `未体现` 或空串）；判定的内容字段（`conclusion`、`one_line`、`next_action`）不受收容，为空依旧校验失败。
 - 修改硬性门槛结构时必须同步：criteria prompt、评估 prompt、`apply_hard_gate_guard()`、Excel 总表「硬性门槛判定」列、硬性门槛降档验证。
 
 ### 6.6 检查点、续跑和最终产物

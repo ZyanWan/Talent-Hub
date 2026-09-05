@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 
 Conclusion = Literal["A优先约面", "B电话确认", "C不推进"]
@@ -96,6 +96,13 @@ class EvidenceDimension(BaseModel):
     quote: str = ""
     location: str = ""
 
+    @field_validator("status", "summary", "quote", "location", mode="before")
+    @classmethod
+    def coerce_null_dimension(cls, value, info: ValidationInfo):
+        if value is not None:
+            return value
+        return {"status": "未体现", "summary": "未体现", "quote": "", "location": ""}[info.field_name]
+
 
 class CandidateEvidence(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -128,6 +135,13 @@ class HardGateVerdict(BaseModel):
     status: Literal["met", "unmet", "unknown"] = "unknown"
     quote: str = ""
     note: str = ""
+
+    @field_validator("id", "rule", "status", "quote", "note", mode="before")
+    @classmethod
+    def coerce_null_gate(cls, value, info: ValidationInfo):
+        if value is not None:
+            return value
+        return {"id": "", "rule": "", "status": "unknown", "quote": "", "note": ""}[info.field_name]
 
 
 class BonusSignalHit(BaseModel):
@@ -166,6 +180,22 @@ class CandidateEvaluation(BaseModel):
         if isinstance(value, str):
             return [value]
         return value
+
+    @field_validator("conclusion", mode="before")
+    @classmethod
+    def expand_short_conclusion(cls, value):
+        mapping = {"A": "A优先约面", "B": "B电话确认", "C": "C不推进"}
+        return mapping.get(value, value)
+
+    @field_validator("candidate_name", "current_company", "current_role",
+                     "contact_phone", "contact_email", "source_file",
+                     "evidence_level", mode="before")
+    @classmethod
+    def coerce_null_meta(cls, value, info: ValidationInfo):
+        if value is not None:
+            return value
+        defaults = {"current_company": "未体现", "current_role": "未体现", "evidence_level": "低"}
+        return defaults.get(info.field_name, "")
 
 
 class CallFact(BaseModel):

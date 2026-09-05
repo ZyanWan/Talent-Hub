@@ -116,6 +116,50 @@ class EvaluationContractTests(unittest.TestCase):
         self.assertNotIn("<built-in function id>", prompt)
         self.assertIn("硬性条件核实-<条件ID>", prompt)
 
+    def test_null_evidence_quote_is_coerced_to_empty_string(self) -> None:
+        item = evaluation(
+            evidence=CandidateEvidence(
+                core_actions=EvidenceDimension(status="匹配", summary="测试", quote=None),
+            ),
+        )
+
+        self.assertEqual(item.evidence.core_actions.quote, "")
+
+    def test_short_conclusion_is_expanded_to_full_label(self) -> None:
+        for short, full in (("A", "A优先约面"), ("B", "B电话确认"), ("C", "C不推进")):
+            with self.subTest(short=short):
+                item = evaluation(conclusion=short)
+                self.assertEqual(item.conclusion, full)
+
+    def test_null_dimension_fields_fall_back_to_defaults(self) -> None:
+        item = evaluation(
+            evidence=CandidateEvidence(
+                object_match=EvidenceDimension(status=None, summary=None, location=None),
+            ),
+        )
+        dim = item.evidence.object_match
+        self.assertEqual((dim.status, dim.summary, dim.location), ("未体现", "未体现", ""))
+
+    def test_null_hard_gate_fields_fall_back_to_defaults(self) -> None:
+        item = evaluation(
+            hard_gate=[HardGateVerdict(status=None, rule=None, quote=None, note=None)],
+        )
+        gate = item.hard_gate[0]
+        self.assertEqual((gate.status, gate.rule, gate.quote, gate.note), ("unknown", "", "", ""))
+
+    def test_null_candidate_meta_falls_back_to_defaults(self) -> None:
+        item = evaluation(
+            current_company=None, current_role=None, contact_phone=None, evidence_level=None,
+        )
+        self.assertEqual(item.current_company, "未体现")
+        self.assertEqual(item.current_role, "未体现")
+        self.assertEqual(item.contact_phone, "")
+        self.assertEqual(item.evidence_level, "低")
+
+    def test_verdict_fields_stay_strict(self) -> None:
+        with self.assertRaises(ValueError):
+            evaluation(conclusion=None, one_line=None, next_action=None)
+
 
 class PhoneContractTests(unittest.TestCase):
     def test_structure_validation_preserves_business_content(self) -> None:
