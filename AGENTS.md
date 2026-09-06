@@ -1,74 +1,77 @@
-# 0. Project Note
+# 0. 项目说明
 
 事实来源：`app/`（后端）+ `frontend/`（前端）。项目结构、参考文档与运行拓扑等细节从 `docs/SOURCE_MAP.md` 入口按主题查阅 `docs/source-map/`。
 
-# 1. Think Before Coding
+# 1. 编码前先思考
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**不要臆测，不要掩盖困惑，把取舍摆在明面上。**
 
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+编码前：
+- 明确陈述你的假设；不确定时直接提问。
+- 若存在多种解读，把它们都列出来，不要默默替你选一个。
+- 若有更简单的做法，直接说出来；该反驳时就反驳。
+- 若有不清楚之处，停下来，讲清楚哪里困惑，再提问。
+- 有纠结之处时，先在脑中复盘多个可行想法，再提问让用户选择。
+- 发现上下文缺失或信息不足时，及时提问，请用户补充。
 
-# 2. Simplicity First
+# 2. 简洁优先
 
-**Minimum code that solves the problem. Nothing speculative.**
+**用最少的代码解决问题，不写投机性内容。**
 
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
+- 不多做用户没要求的功能。
+- 不为一次性的代码做抽象。
+- 不提供未被要求的"灵活性"或"可配置性"。
+- 不为不可能出现的场景做错误处理。
+- 如果写了 200 行、本可写 50 行，重写它。
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+问自己："资深工程师会说这过度复杂吗？"是的话，就简化。
 
-# 3. Surgical Changes
+# 3. 手术式改动
 
-**Touch only what you must. Clean up only your own mess.**
+**只碰必须碰的东西，只收拾自己造成的乱摊子。**
 
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+编辑既有代码时：
+- 不去"改进"相邻的代码、注释或格式。
+- 不去重构没坏的东西。
+- 遵循现有风格，哪怕换个写法你更顺手。
+- 发现无关的死代码时提及即可，不要删除。
 
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
+当你的改动制造出失孤对象时：
+- 删除因你的改动而不再被使用的导入、变量、函数。
+- 除非被要求，否则不要删除本已存在的死代码。
 
-The test: Every changed line should trace directly to the user's request.
+判定标准：每一行改动都应直接追溯到你收到的那条需求。
 
-# 4. Goal-Driven Execution
+# 4. 目标驱动执行
 
-**Define success criteria. Loop until verified.**
+**定义成功标准，循环到验证通过为止。**
 
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
+把任务转化为可验证的目标：
+- "补校验" → "先为非法输入写测试，再让测试通过"
+- "修缺陷" → "先写一个能复现它的测试，再让测试通过"
+- "重构 X" → "确保重构前后测试都通过"
 
-For multi-step tasks, state a brief plan:
+多步骤任务先给出简要计划：
 ```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
+1. [步骤] → 验证：[检查点]
+2. [步骤] → 验证：[检查点]
+3. [步骤] → 验证：[检查点]
 ```
 
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+清晰的成功标准能让你独立循环推进；含糊的标准（"让它能跑"）则要求你不断澄清。
 
-# 5. 文档同步（Doc Sync）
+# 5. 文档同步
 
-**功能变更与文档更新必须同时完成，禁止先改代码后补文档。** 用户依赖文档配置与使用功能；文档落后于代码会直接造成困惑。
+**功能变更与文档更新必须同时完成，禁止先改代码后补文档。** 
 
+用户依赖文档配置与使用功能；文档落后于代码会直接造成困惑。
 - 新增模块、能力或外部服务 → 同步更新 `README.md` / `README.en.md`（当前能力、技术特性、配置章节）与 `APP_GUIDE.md`（面向用户的操作步骤）。
 - 修改代码结构、数据流、API、配置字段或状态机 → 同步更新 `docs/SOURCE_MAP.md` 入口及 `docs/source-map/` 中对应专题（代码地图、运行时拓扑、数据流、API 契约、变更影响矩阵）。
 - 新增用户可操作的配置项 → 在 README 与 APP_GUIDE 中提供逐步配置指引，包含界面入口的具体描述（面向非技术用户时，说明入口在界面的哪个位置，不假设用户熟悉平台）。
 - 文档必须基于代码实现描述事实，不记录临时调试过程（故障证据放 `debug/`，稳定约束回写文档）。
 - 收尾前检查清单：README（中英）是否提到新功能、APP_GUIDE 是否可让新用户独立完成配置、`docs/SOURCE_MAP.md` 是否反映真实数据流与影响面。
 
-# 6. 生产代码卫生（Code Hygiene）
+# 6. 生产代码卫生
 
 **注释与文档只描述当前代码事实，使用现在时；不记录历史变迁，不引用已删除的实现。**
 
