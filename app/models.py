@@ -151,6 +151,14 @@ class BonusSignalHit(BaseModel):
     evidence: str = ""
 
 
+class AClassCheck(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    condition: str
+    status: Literal["满足", "不满足", "存疑"] = "存疑"
+    evidence: str = ""
+
+
 class CandidateEvaluation(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -168,6 +176,7 @@ class CandidateEvaluation(BaseModel):
     evidence: CandidateEvidence = Field(default_factory=CandidateEvidence)
     hard_gate: list[HardGateVerdict] = Field(default_factory=list)
     bonus_signal_hits: list[BonusSignalHit] = Field(default_factory=list)
+    a_conditions_check: list[AClassCheck] = Field(default_factory=list)
     phone_questions: list[PhoneQuestion] = Field(default_factory=list)
     source_file: str = ""
     guard_warnings: list[str] = Field(default_factory=list)
@@ -179,6 +188,13 @@ class CandidateEvaluation(BaseModel):
             return []
         if isinstance(value, str):
             return [value]
+        return value
+
+    @field_validator("a_conditions_check", mode="before")
+    @classmethod
+    def coerce_a_conditions_check(cls, value):
+        if not isinstance(value, list):
+            return []
         return value
 
     @field_validator("conclusion", mode="before")

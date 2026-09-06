@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from app.llm import LLMResponseError, OpenAICompatibleClient, prompt_json
 from app.main import CompareSelection, compare_user_prompt, validated_compare_call
 from app.models import (
+    AClassCheck,
     CallFact,
     CallField,
     CallRemarkSection,
@@ -72,6 +73,15 @@ class CriteriaContractTests(unittest.TestCase):
 
         self.assertEqual([item.rule for item in value.hard_requirements], ["三年产品经验"])
         self.assertEqual(value.negative_signals, [])
+
+
+def matched_evidence() -> CandidateEvidence:
+    return CandidateEvidence(
+        object_match=EvidenceDimension(status="匹配", summary="负责产品需求和交付闭环"),
+        scenario_match=EvidenceDimension(status="匹配", summary="负责产品需求和交付闭环"),
+        core_actions=EvidenceDimension(status="匹配", summary="负责产品需求和交付闭环"),
+        ownership_depth=EvidenceDimension(status="匹配", summary="负责产品需求和交付闭环"),
+    )
 
 
 class EvaluationContractTests(unittest.TestCase):
@@ -159,6 +169,105 @@ class EvaluationContractTests(unittest.TestCase):
     def test_verdict_fields_stay_strict(self) -> None:
         with self.assertRaises(ValueError):
             evaluation(conclusion=None, one_line=None, next_action=None)
+
+    def test_a_conditions_all_satisfied_keeps_a(self) -> None:
+        source = "候选人负责产品需求和交付闭环，五年经验。"
+        standard = criteria(a_conditions=[RuleItem(id="A1", rule="负责产品交付闭环")])
+        item = evaluation(
+            evidence=matched_evidence(),
+            a_conditions_check=[AClassCheck(
+                condition="负责产品交付闭环",
+                status="满足",
+                evidence="负责产品需求和交付闭环",
+            )],
+        )
+
+        item = apply_evidence_guard(item, source)
+        item = apply_hard_gate_guard(item, standard, source)
+
+        self.assertEqual(item.conclusion, "A优先约面")
+
+    def test_a_conditions_uncertain_downgrades_to_b(self) -> None:
+        source = "候选人负责产品需求和交付闭环。"
+        standard = criteria(a_conditions=[RuleItem(id="A1", rule="独立负责交付闭环")])
+        item = evaluation(
+            evidence=matched_evidence(),
+            a_conditions_check=[AClassCheck(
+                condition="独立负责交付闭环",
+                status="存疑",
+                evidence="简历未写明是否独立负责",
+            )],
+        )
+
+        item = apply_evidence_guard(item, source)
+        item = apply_hard_gate_guard(item, standard, source)
+
+        self.assertEqual(item.conclusion, "B电话确认")
+        self.assertTrue(any("A类条件核实" in q.focus for q in item.phone_questions))
+        self.assertTrue(any("A 类条件存疑" in b for b in item.blockers))
+
+    def test_a_conditions_check_missing_downgrades_to_b(self) -> None:
+        source = "候选人负责产品需求和交付闭环。"
+        standard = criteria(a_conditions=[RuleItem(id="A1", rule="负责产品交付闭环")])
+        item = evaluation(evidence=matched_evidence())
+
+        item = apply_evidence_guard(item, source)
+        item = apply_hard_gate_guard(item, standard, source)
+
+        self.assertEqual(item.conclusion, "B电话确认")
+
+    def test_a_conditions_count_mismatch_downgrades_to_b(self) -> None:
+        source = "候选人负责产品需求和交付闭环。"
+        standard = criteria(a_conditions=[RuleItem(id="A1", rule="负责产品交付闭环")])
+        item = evaluation(
+            evidence=matched_evidence(),
+            a_conditions_check=[
+                AClassCheck(condition="负责产品交付闭环", status="满足", evidence="负责产品需求和交付闭环"),
+                AClassCheck(condition="五年经验", status="满足", evidence="负责产品需求和交付闭环"),
+            ],
+        )
+
+        item = apply_evidence_guard(item, source)
+        item = apply_hard_gate_guard(item, standard, source)
+
+        self.assertEqual(item.conclusion, "B电话确认")
+
+    def test_a_conditions_evidence_without_anchor_downgrades_to_b(self) -> None:
+        source = "候选人负责产品需求和交付闭环。"
+        standard = criteria(a_conditions=[RuleItem(id="A1", rule="负责产品交付闭环")])
+        item = evaluation(
+            evidence=matched_evidence(),
+            a_conditions_check=[AClassCheck(
+                condition="负责产品交付闭环",
+                status="满足",
+                evidence="负责订单和排期跟进",
+            )],
+        )
+
+        item = apply_evidence_guard(item, source)
+        item = apply_hard_gate_guard(item, standard, source)
+
+        self.assertEqual(item.conclusion, "B电话确认")
+
+    def test_empty_a_conditions_in_criteria_skips_gate(self) -> None:
+        source = "候选人负责产品需求和交付闭环。"
+        item = evaluation(evidence=matched_evidence())
+
+        item = apply_evidence_guard(item, source)
+        item = apply_hard_gate_guard(item, criteria(), source)
+
+        self.assertEqual(item.conclusion, "A优先约面")
+
+    def test_null_a_conditions_check_is_coerced_to_empty_list(self) -> None:
+        item = evaluation(a_conditions_check=None)
+
+        self.assertEqual(item.a_conditions_check, [])
+
+    def test_evaluation_prompt_defines_a_conditions_check_contract(self) -> None:
+        prompt = evaluation_user_prompt(criteria(), "简历正文", "resume.pdf")
+
+        self.assertIn("a_conditions_check", prompt)
+        self.assertIn("不得遗漏或改写", prompt)
 
 
 class PhoneContractTests(unittest.TestCase):
