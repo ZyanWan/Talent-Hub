@@ -157,7 +157,7 @@ Currently supported modules — more will follow:
 The app opens your default browser on startup. On first use, enter the model service base URL, API key, and model name in Settings, then test the connection; on macOS, configure secrets with environment variables.
 
 > [!NOTE]
-> Text-based PDF, DOCX, TXT, and Markdown need no OCR. For scanned PDFs or images, install Tesseract (and the `chi_sim` language pack for Chinese resumes). The app checks `TESSERACT_CMD`, `PATH`, and common platform paths automatically; enter the executable path in Settings only if detection fails. On macOS, install it with `brew install tesseract tesseract-lang`.
+> Text-based PDF, DOCX, TXT, and Markdown need no OCR. For scanned PDFs or images, install Tesseract (and the `chi_sim` language pack for Chinese resumes). The app checks `TESSERACT_CMD`, `PATH`, and common platform paths automatically; enter the executable path in Settings only if detection fails. On Windows, install it from the [UB Mannheim installer](https://github.com/UB-Mannheim/tesseract/wiki) and select Simplified Chinese during setup; on macOS, install it with `brew install tesseract tesseract-lang`.
 
 ## Application settings
 

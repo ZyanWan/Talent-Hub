@@ -157,7 +157,7 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
 应用启动后会在默认浏览器打开。首次使用时，Windows 在设置中填写模型服务基础地址、API Key 与模型名称，并测试连接；macOS 在启动前配置 `TALENT_HUB_API_KEY`，设置中只填写模型服务基础地址和模型名称等非敏感项。
 
 > [!NOTE]
-> 文本型 PDF、DOCX、TXT、Markdown 无需 OCR；处理扫描 PDF 或图片时需安装 Tesseract（中文简历建议安装 `chi_sim` 语言包）。应用会从 `TESSERACT_CMD`、`PATH` 和平台常见路径自动探测；探测失败时再在设置中填写程序路径。macOS 可通过 `brew install tesseract tesseract-lang` 安装。
+> 文本型 PDF、DOCX、TXT、Markdown 无需 OCR；处理扫描 PDF 或图片时需安装 Tesseract（中文简历建议安装 `chi_sim` 语言包）。应用会从 `TESSERACT_CMD`、`PATH` 和平台常见路径自动探测；探测失败时再在设置中填写程序路径。Windows 可从 [UB Mannheim 安装包](https://github.com/UB-Mannheim/tesseract/wiki) 安装（安装时勾选简体中文语言包）；macOS 可通过 `brew install tesseract tesseract-lang` 安装。分步指引见 [APP_GUIDE「OCR 配置」](APP_GUIDE.md#ocr-配置)。
 
 ## 应用设置（配置项说明）
 

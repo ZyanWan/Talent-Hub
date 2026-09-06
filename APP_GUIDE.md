@@ -31,7 +31,18 @@ Windows 开发环境完成 Python 与前端依赖安装后，可双击项目根�
 
 ## OCR 配置
 
-文本型 PDF、DOCX、TXT 和 Markdown 无需 OCR。扫描 PDF 与图片简历需要安装 Tesseract；应用会从 `TESSERACT_CMD`、`PATH` 和平台常见路径自动探测，探测失败时再在设置中填写程序路径。中文简历应安装 `chi_sim` 语言包，应用会优先使用 `chi_sim+eng`。macOS 可通过 `brew install tesseract tesseract-lang` 安装。
+文本型 PDF、DOCX、TXT 和 Markdown 无需 OCR。扫描 PDF 与图片简历需要安装 Tesseract；应用会从 `TESSERACT_CMD`、`PATH` 和平台常见路径自动探测，探测失败时再在设置中填写程序路径。中文简历应安装 `chi_sim` 语言包，应用会优先使用 `chi_sim+eng`。
+
+### Windows
+
+1. 打开 [Tesseract Windows 安装包下载页](https://github.com/UB-Mannheim/tesseract/wiki)（UB Mannheim 提供的 64 位安装包），下载最新版 `tesseract-ocr-w64-setup-*` 安装程序并运行。
+2. 按安装向导执行到「Additional language data」界面，务必勾选 **Chinese (Simplified)**；安装包默认只含英文语言包，不勾选则无法识别中文简历。
+3. 使用默认安装路径 `C:\Program Files\Tesseract-OCR` 完成安装；该路径会被应用自动探测，设置中无需填写。
+4. 打开应用顶栏右侧「设置」→「本地处理」分组，确认「文字识别程序路径」下方显示「文字识别已就绪 · 简体中文 + 英文」；若显示「未检测到文字识别环境」，在该输入框填写 `C:\Program Files\Tesseract-OCR\tesseract.exe` 并保存。
+
+### macOS
+
+在终端执行 `brew install tesseract tesseract-lang` 安装 Tesseract 与语言包，然后在应用设置「本地处理」分组确认文字识别状态显示就绪。
 
 ## 本机数据
 
