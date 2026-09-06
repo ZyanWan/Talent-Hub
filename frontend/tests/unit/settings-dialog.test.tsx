@@ -80,6 +80,21 @@ describe("应用设置", () => {
     expect(parsedBody(1)).toMatchObject({ clear_asr: false, clear_feishu_sign: true });
   });
 
+  it("勾选二次复核开关后随完整配置提交", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}));
+    renderDialog();
+    fireEvent.change(screen.getByLabelText("模型名称"), { target: { value: "gpt-4o-mini" } });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "对 A 类结论执行二次复核（增加模型调用）" }));
+    expect(
+      (screen.getByRole("checkbox", { name: "对 A 类结论执行二次复核（增加模型调用）" }) as HTMLInputElement).checked,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(parsedBody()).toMatchObject({ review_a_candidates: true });
+  });
+
   it("模型与飞书连接测试调用各自端点", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ message: "连接成功" }));
     renderDialog();

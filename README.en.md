@@ -174,6 +174,7 @@ The Settings dialog (top-right) centrally manages the options below. "Model base
 | Retain parsed text | on | Whether to keep each resume's parsed text locally. When off, those texts are not saved, while parsed JD text and the parsing manifest without resume bodies remain stored. |
 | Speech-to-text key | empty | Volcano Engine large-model speech recognition (audio-file fast version) API key; Windows encrypts it with DPAPI, while macOS uses the `TALENT_HUB_ASR_API_KEY` environment variable. |
 | Generate phone screening details (Q&A transcript) | off | When enabled, phone summarization also produces a full Q&A transcript; leaving it off reduces model output length and processing time. |
+| Double-check A conclusions | off | When enabled, resume screening runs an independent review call for each initially A-rated candidate; a disagreement with the initial conclusion downgrades the candidate to B with a verification question. Increases model calls. |
 
 ### Speech-to-text (Volcano Engine) setup
 

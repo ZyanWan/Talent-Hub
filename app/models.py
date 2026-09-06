@@ -159,6 +159,14 @@ class AClassCheck(BaseModel):
     evidence: str = ""
 
 
+class AReview(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    confirm: bool = False
+    reason: str = ""
+    verify_question: str = ""
+
+
 class CandidateEvaluation(BaseModel):
     model_config = ConfigDict(extra="ignore")
 

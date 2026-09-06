@@ -90,9 +90,13 @@ POST /start（标准已就绪）
         └─ OpenAICompatibleClient.chat_json() → CandidateEvaluation.model_validate()
      → apply_evidence_guard(evaluation, resume_text)
      → apply_hard_gate_guard(evaluation, criteria, resume_text)
+     → 配置 review_a_candidates 开启且结论为 A 时：
+        _validated_call(a_review_system_prompt(), a_review_user_prompt(criteria, resume_text, _evidence_summary(evaluation)), AReview, request_attempts=2)
+        → apply_a_review(evaluation, review)（confirm=false → 降 B 并生成复核核实问题）
+        → 复核调用异常时保持原结论并写入 guard_warnings
 ```
 
-每位候选人只有一个评估业务阶段，不执行独立语义复核。单次调用按配置超时，传输错误最多尝试 2 次；JSON 或结构校验失败时最多追加一次带纠正要求的调用。
+每位候选人只有一个评估业务阶段；开启「对 A 类结论执行二次复核」（设置项 `review_a_candidates`，默认关闭）时，对初筛 A 类结论追加一次独立的复核调用。单次调用按配置超时，传输错误最多尝试 2 次；JSON 或结构校验失败时最多追加一次带纠正要求的调用。
 
 文档解析的交叉路径：
 

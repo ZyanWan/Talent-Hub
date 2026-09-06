@@ -35,6 +35,7 @@ interface SettingsForm {
     ocr_executable: string;
     retain_resume_text: boolean;
     call_qa_records: boolean;
+    review_a_candidates: boolean;
     feishu_push_enabled: boolean;
     feishu_webhook_url: string;
     feishu_sign_secret: string;
@@ -62,6 +63,7 @@ function initialForm(): SettingsForm {
         ocr_executable: asString(settings?.ocr_executable),
         retain_resume_text: settings?.retain_resume_text !== false,
         call_qa_records: settings?.call_qa_records === true,
+        review_a_candidates: settings?.review_a_candidates === true,
         feishu_push_enabled: settings?.feishu_push_enabled === true,
         feishu_webhook_url: asString(settings?.feishu_webhook_url),
         feishu_sign_secret: "",
@@ -81,6 +83,7 @@ function buildPayload(form: SettingsForm, clearAsr: boolean, clearFeishuSign: bo
         ocr_executable: form.ocr_executable.trim(),
         retain_resume_text: form.retain_resume_text,
         call_qa_records: form.call_qa_records,
+        review_a_candidates: form.review_a_candidates,
         feishu_push_enabled: form.feishu_push_enabled,
         feishu_webhook_url: form.feishu_webhook_url.trim(),
         feishu_sign_secret: clearFeishuSign ? "" : form.feishu_sign_secret.trim(),
@@ -400,6 +403,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                                         onChange={(event) => setField("call_qa_records", event.target.checked)}
                                     />
                                     <span>{t("callQaRecords")}</span>
+                                </label>
+                                <label className="toggle-row">
+                                    <input
+                                        name="review_a_candidates"
+                                        type="checkbox"
+                                        checked={form.review_a_candidates}
+                                        onChange={(event) => setField("review_a_candidates", event.target.checked)}
+                                    />
+                                    <span>{t("reviewACandidates")}</span>
                                 </label>
                             </div>
                         </section>

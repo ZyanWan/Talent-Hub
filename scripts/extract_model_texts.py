@@ -12,6 +12,8 @@ sys.path.insert(0, str(ROOT))
 from app.main import compare_system_prompt, compare_user_prompt  # noqa: E402
 from app.models import RuleItem, ScreeningCriteria  # noqa: E402
 from app.pipeline import (  # noqa: E402
+    a_review_system_prompt,
+    a_review_user_prompt,
     criteria_system_prompt,
     criteria_user_prompt,
     evaluation_system_prompt,
@@ -87,6 +89,12 @@ def main() -> None:
         block("SP-02 JD 转筛选标准", "user", criteria_user_prompt("{{JD_TEXT}}")),
         block("SP-03 单份简历评估", "system", evaluation_system_prompt()),
         block("SP-03 单份简历评估", "user", evaluation_user_prompt(criteria, "{{RESUME_TEXT}}", "{{SOURCE_FILE}}")),
+        block("SP-03 单份简历评估（A 类二次复核）", "system", a_review_system_prompt()),
+        block(
+            "SP-03 单份简历评估（A 类二次复核）",
+            "user",
+            a_review_user_prompt(criteria, "{{RESUME_TEXT}}", "{{EVIDENCE_SUMMARY}}"),
+        ),
         block("SP-04 候选人横向对比", "system", compare_system_prompt()),
         block("SP-04 候选人横向对比", "user", compare_user_prompt(criteria.model_dump(mode="json"), compare_candidates)),
         block("SP-05 电话初筛整理", "system", summarize_system_prompt()),
@@ -120,7 +128,8 @@ def main() -> None:
         "- 横向比较最多接收 20 位候选人；每位候选人按 SP-04 JSON 数组元素重复。\n"
         "- 候选人名、文件名、筛选标准、评估摘要、关注项和原始文档均是动态不可信数据。\n",
         "## 完整性边界\n\n"
-        "生产代码中的自然语言 messages 只有以上五类。`docs/MODEL_INPUT_TEXTS.md`、README、源码地图、"
+        "生产代码中的自然语言 messages 只有以上五类；SP-03 的 A 类二次复核仅在开启"
+        "「对 A 类结论执行二次复核」且初筛结论为 A 时追加。`docs/MODEL_INPUT_TEXTS.md`、README、源码地图、"
         "前端文案、日志和普通异常文本不会发送给模型；只有本文件列出的三条结构纠正后缀会在对应失败重试时追加。\n",
     ]
     (ROOT / "docs" / "MODEL_INPUT_TEXTS.md").write_text("\n".join(sections), encoding="utf-8")

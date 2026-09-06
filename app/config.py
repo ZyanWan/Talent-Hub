@@ -41,6 +41,7 @@ class AppSettings:
     asr_api_key: str = ""       # 火山引擎 API Key，DPAPI 加密保存
     retain_resume_text: bool = True
     call_qa_records: bool = False   # 电话整理是否生成快筛详情（通篇问答原文）；关闭可大幅减少模型输出
+    review_a_candidates: bool = False   # 简历筛选是否对 A 类结论执行二次复核；开启会增加模型调用
     feishu_push_enabled: bool = False   # 任务完成后是否推送结果到飞书群
     feishu_webhook_url: str = ""        # 飞书自定义机器人 Webhook 地址
     feishu_sign_secret: str = ""        # 飞书签名密钥，DPAPI 加密保存
@@ -60,6 +61,7 @@ class AppSettings:
             asr_api_key=self.asr_api_key.strip(),
             retain_resume_text=bool(self.retain_resume_text),
             call_qa_records=bool(self.call_qa_records),
+            review_a_candidates=bool(self.review_a_candidates),
             feishu_push_enabled=bool(self.feishu_push_enabled),
             feishu_webhook_url=self.feishu_webhook_url.strip(),
             feishu_sign_secret=self.feishu_sign_secret.strip(),
@@ -92,6 +94,7 @@ class AppSettings:
             "asr_configured": bool(self.effective_asr_api_key),
             "retain_resume_text": self.retain_resume_text,
             "call_qa_records": self.call_qa_records,
+            "review_a_candidates": self.review_a_candidates,
             "feishu_push_enabled": self.feishu_push_enabled,
             "feishu_webhook_url": self.feishu_webhook_url,
             "feishu_sign_configured": bool(self.effective_feishu_sign_secret),

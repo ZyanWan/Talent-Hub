@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import threading
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
+from app.config import AppSettings
 from app.llm import LLMResponseError, OpenAICompatibleClient, prompt_json
 from app.main import CompareSelection, compare_user_prompt, validated_compare_call
 from app.models import (
     AClassCheck,
+    AReview,
     CallFact,
     CallField,
     CallRemarkSection,
@@ -18,7 +23,15 @@ from app.models import (
     RuleItem,
     ScreeningCriteria,
 )
-from app.pipeline import apply_evidence_guard, apply_hard_gate_guard, evaluation_user_prompt
+from app.pipeline import (
+    EvaluationEngine,
+    _evidence_summary,
+    a_review_user_prompt,
+    apply_a_review,
+    apply_evidence_guard,
+    apply_hard_gate_guard,
+    evaluation_user_prompt,
+)
 from app.runtime.phone_screening import (
     render_remark_narrative,
     summarize_system_prompt,
@@ -269,6 +282,54 @@ class EvaluationContractTests(unittest.TestCase):
         self.assertIn("a_conditions_check", prompt)
         self.assertIn("不得遗漏或改写", prompt)
 
+    def test_a_review_confirm_keeps_a(self) -> None:
+        item = evaluation(evidence=matched_evidence())
+        item.conclusion = "A优先约面"
+        item = apply_a_review(item, AReview(confirm=True, reason="无疑点"))
+
+        self.assertEqual(item.conclusion, "A优先约面")
+        self.assertTrue(any("确认 A 类结论" in w for w in item.guard_warnings))
+
+    def test_a_review_reject_downgrades_to_b(self) -> None:
+        item = evaluation(evidence=matched_evidence())
+        item.conclusion = "A优先约面"
+        item.evidence_level = "高"
+        item = apply_a_review(item, AReview(
+            confirm=False,
+            reason="核心证据主要来自多年前经历",
+            verify_question="请说明近三年实际负责的后端履行环节",
+        ))
+
+        self.assertEqual(item.conclusion, "B电话确认")
+        self.assertEqual(item.evidence_level, "中")
+        self.assertEqual(item.next_action, "电话确认关键事实后再定")
+        self.assertTrue(any("二次复核不确认" in b for b in item.blockers))
+        self.assertEqual(item.phone_questions[0].focus, "二次复核核实")
+        self.assertEqual(item.phone_questions[0].priority, "高")
+        self.assertEqual(item.phone_questions[0].question, "请说明近三年实际负责的后端履行环节")
+        self.assertTrue(any("调整为 B 类" in w for w in item.guard_warnings))
+
+    def test_a_review_verify_question_falls_back_to_reason(self) -> None:
+        item = evaluation(evidence=matched_evidence())
+        item.conclusion = "A优先约面"
+        item = apply_a_review(item, AReview(confirm=False, reason="角色仅为协助", verify_question=""))
+
+        self.assertIn("角色仅为协助", item.phone_questions[0].question)
+
+    def test_a_review_user_prompt_contract(self) -> None:
+        prompt = a_review_user_prompt(criteria(), "简历正文", "核心维度摘要")
+
+        self.assertIn("confirm", prompt)
+        self.assertIn("独立判断", prompt)
+        self.assertIn("initial_conclusion", prompt)
+
+    def test_evidence_summary_lists_core_dimensions(self) -> None:
+        item = evaluation(evidence=matched_evidence())
+        summary = _evidence_summary(item)
+
+        self.assertIn("object_match: 匹配", summary)
+        self.assertIn("core_actions: 匹配", summary)
+
 
 class PhoneContractTests(unittest.TestCase):
     def test_structure_validation_preserves_business_content(self) -> None:
@@ -415,6 +476,68 @@ class PromptSerializationTests(unittest.TestCase):
         with self.assertRaises(LLMResponseError):
             client.chat_json("system", "user", attempts=3)
         self.assertEqual(client._client.calls, 1)
+
+
+class AReviewSwitchTests(unittest.TestCase):
+    """二次复核开关在评估流程中的行为：开关开/关、复核不一致与异常兜底。"""
+
+    def _evaluate(self, review_result, *, switch_on: bool):
+        repository = mock.Mock()
+        repository.list_jobs.return_value = []
+        engine = EvaluationEngine(repository, mock.Mock())
+        settings = AppSettings(review_a_candidates=switch_on)
+        calls: list[str] = []
+
+        def fake_validated_call(client, system, user, model_type, *, request_attempts=3):
+            if "复核一份简历" in user:
+                calls.append("review")
+                if isinstance(review_result, Exception):
+                    raise review_result
+                return review_result
+            calls.append("evaluate")
+            return evaluation(conclusion="A优先约面")
+
+        with (
+            mock.patch.object(engine, "_open_client", return_value=object()),
+            mock.patch.object(engine, "_close_client"),
+            mock.patch.object(engine, "_validated_call", side_effect=fake_validated_call),
+            mock.patch(
+                "app.pipeline.extract_document",
+                return_value={"usable": True, "text": "候选人负责产品需求和交付闭环。"},
+            ),
+            mock.patch("app.pipeline.apply_evidence_guard", side_effect=lambda item, text: item),
+            mock.patch(
+                "app.pipeline.apply_hard_gate_guard",
+                side_effect=lambda item, standard, text: item,
+            ),
+        ):
+            result, _meta = engine._evaluate_one(
+                criteria(), Path("resume.pdf"), settings, threading.Event(), "job-1"
+            )
+        return result, calls
+
+    def test_switch_off_skips_review_and_keeps_a(self) -> None:
+        result, calls = self._evaluate(AReview(confirm=True), switch_on=False)
+
+        self.assertEqual(calls, ["evaluate"])
+        self.assertEqual(result.conclusion, "A优先约面")
+
+    def test_switch_on_review_rejects_downgrades_to_b(self) -> None:
+        result, calls = self._evaluate(
+            AReview(confirm=False, reason="核心证据主要来自多年前经历"),
+            switch_on=True,
+        )
+
+        self.assertEqual(calls, ["evaluate", "review"])
+        self.assertEqual(result.conclusion, "B电话确认")
+        self.assertTrue(any("二次复核不确认" in b for b in result.blockers))
+
+    def test_switch_on_review_error_keeps_a_with_warning(self) -> None:
+        result, calls = self._evaluate(LLMResponseError(), switch_on=True)
+
+        self.assertEqual(calls, ["evaluate", "review"])
+        self.assertEqual(result.conclusion, "A优先约面")
+        self.assertTrue(any("二次复核未完成" in w for w in result.guard_warnings))
 
 
 if __name__ == "__main__":

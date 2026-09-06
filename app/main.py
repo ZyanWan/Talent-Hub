@@ -230,6 +230,7 @@ class SettingsInput(BaseModel):
     clear_asr: bool = False
     retain_resume_text: bool = True
     call_qa_records: bool = False
+    review_a_candidates: bool = False
     feishu_push_enabled: bool = False
     feishu_webhook_url: str = ""
     feishu_sign_secret: str = ""
