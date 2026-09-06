@@ -481,7 +481,7 @@ html:has(.preview-backdrop) {
 .field-action-row { display: flex; align-items: stretch; gap: 8px; }
 .field-action-row input { flex: 1 1 auto; width: auto; min-width: 0; }
 .field-action-row .secondary-button { height: 42px; padding: 0 14px; }
-.toggle-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.toggle-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .settings-feishu-toggle { margin-top: 10px; }
 .toggle-row { min-width: 0; min-height: 54px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; color: var(--ink-soft); font-size: 10.5px; line-height: 1.5; cursor: pointer; }
 .toggle-row span { flex: 1; min-width: 0; }
