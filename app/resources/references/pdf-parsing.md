@@ -74,7 +74,7 @@ python -m app.runtime.extract_resume_text <简历目录> --jsonl --json-output r
 `extract_file()` 返回四元组 `(text, method, usable, page_count)`。`pipeline.extract_document()` 返回包含 `text`、`method`、`usable`、`page_count`、`char_count` 和 `error` 的字典。独立 CLI 在此基础上组装以下记录字段：
 
 | 字段 | 说明 |
-|---|---|
+| --- | --- |
 | `file` | 原始简历路径 |
 | `method` | 解析方式：`pypdf` / `pdfplumber` / `docx-xml` / `text` / `tesseract-image-ocr` / `tesseract-pdf-ocr` / `pdf-text-layer-insufficient` / `image-ocr-required` / `pdf-page-limit` / `error` |
 | `usable` | 文本是否达到评估最低可用质量 |

@@ -94,3 +94,5 @@
 - 修改 Windows 或 macOS 构建、安装或清理流程。
 
 源码地图文档组只描述当前代码事实和稳定架构约束；具体故障证据与临时调试过程放入 `debug/`。
+
+Markdown 格式由仓库根目录 `.markdownlint.json` 统一约定：关闭 MD012 / MD013 / MD024 / MD025 / MD033 / MD041（允许中文长行、内联 HTML 与 `# 0.`~`# 6.` 分节编号），其余规则保持开启。改动文档后运行 `npx markdownlint-cli2 "*.md" "app/**/*.md" "docs/**/*.md" "debug/**/*.md"`，受版本控制的文档应无告警。

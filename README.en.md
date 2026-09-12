@@ -209,6 +209,7 @@ The bot-creation labels below belong to Feishu and may vary with its client inte
 3. In the app's Settings dialog, under the "Feishu push" section: check "Automatically push results to the Feishu group when tasks finish", paste the Webhook URL, click "Test Feishu link" to verify, then save.
 
 > [!TIP]
+>
 > - If signature verification is not enabled, leave the signature secret blank. If it is enabled, enter the generated secret in "Feishu push · Signature secret" on Windows; on macOS, set `TALENT_HUB_FEISHU_SIGN_SECRET` before launch.
 > - Talent Hub does not automatically insert custom keywords or adapt to an IP allowlist. Before enabling either Feishu-side rule, ensure that the app's messages and request source satisfy it.
 > - Resume messages contain statistics, candidate names, conclusions, and one-line judgments. Phone messages contain the organized record shown in the app, but do not separately append the raw transcript, facts list, or citation fields. Oversized phone messages are truncated with a prompt to view the full record in Talent Hub.

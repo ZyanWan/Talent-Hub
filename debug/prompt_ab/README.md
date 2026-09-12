@@ -4,7 +4,7 @@
 
 ## 文件结构
 
-```
+```text
 prompt_ab/
 ├── eval_prompt.py          # 测试脚本（用法见下）
 ├── normal/                 # 用例：优秀候选人（王晓明）——验证真亮点不被误杀
@@ -41,7 +41,7 @@ python debug\prompt_ab\eval_prompt.py --compare-system debug\prompt_ab\snapshot_
 `*_result.json` 中的 `quality` 字段为自动量化指标：
 
 | 指标 | 含义 | 期望 |
-|---|---|---|
+| --- | --- | --- |
 | `spectator_phrases` | 旁观转述句式命中（如"候选人表示""HR 询问"） | 0（记录必须是 HR 本人口径） |
 | `speaker_leak` / `timestamp_leak` | 转写说话人标记 / 时间戳泄漏到正文 | 0 |
 | `markdown_leak` | Markdown 语法泄漏 | 0 |
