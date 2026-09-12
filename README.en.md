@@ -121,6 +121,8 @@ Currently supported modules — more will follow:
    python -m pip install -r requirements.txt
    ```
 
+   To run the backend tests, also install the dev dependencies with `python -m pip install -r requirements-dev.txt`, then run `python -m pytest`.
+
 2. Build the frontend (the backend serves the `frontend/dist` build output):
 
    Windows:

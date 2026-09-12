@@ -121,6 +121,8 @@ Talent Hub 把招聘里最耗时、最容易带主观偏差的几个环节串成
    python -m pip install -r requirements.txt
    ```
 
+   需要运行后端测试时，再安装开发依赖 `python -m pip install -r requirements-dev.txt`，然后执行 `python -m pytest`。
+
 2. 构建前端（后端直接托管 `frontend/dist` 构建产物）：
 
    Windows：
