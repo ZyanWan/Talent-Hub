@@ -32,4 +32,4 @@
 
 电话链路中的事实引用只用于尝试定位录音时间，不裁决正文、软性素质评价或字段状态；具体契约见[电话确认链路](source-map/05-phone-screening.md)与[配置、密钥与安全边界](source-map/03-configuration-security.md)。
 
-Markdown 格式由仓库根目录 `.markdownlint.json` 约定；具体规则与检查命令见[第 19 节 文档维护要求](source-map/07-change-guide.md#19-文档维护要求)。
+Markdown 格式由仓库根目录 `.markdownlint.json` 约定；具体规则与检查命令见 [AGENTS.md 第 2 节命令表与第 10 节](../AGENTS.md#2-验证命令)。

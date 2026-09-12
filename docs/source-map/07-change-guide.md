@@ -91,8 +91,9 @@
 - 修改 API 字段、结论枚举或工作簿契约；
 - 修改并发、取消、恢复或检查点机制；
 - 修改密钥、文件、证据或 Excel 安全边界；
-- 修改 Windows 或 macOS 构建、安装或清理流程。
+- 修改 Windows 或 macOS 构建、安装或清理流程；
+- 新增或改变用户可感知的能力、配置项或外部服务 → 同时更新 `README.md` / `README.en.md` 与 `APP_GUIDE.md`。
 
 源码地图文档组只描述当前代码事实和稳定架构约束；具体故障证据与临时调试过程放入 `debug/`。
 
-Markdown 格式由仓库根目录 `.markdownlint.json` 统一约定：关闭 MD012 / MD013 / MD024 / MD025 / MD033 / MD041（允许中文长行、内联 HTML 与 `# 0.`~`# 6.` 分节编号），其余规则保持开启。改动文档后运行 `npx markdownlint-cli2 "*.md" "app/**/*.md" "docs/**/*.md" "debug/**/*.md"`，受版本控制的文档应无告警。
+Markdown 格式的约定与检查命令见 `AGENTS.md` 第 2 节命令表与第 10 节，规则明细以仓库根目录 `.markdownlint.json` 为准。
