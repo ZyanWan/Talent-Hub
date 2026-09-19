@@ -99,7 +99,7 @@ Currently supported modules — more will follow:
 | **HR-focused result messages** | Each resume-screening run sends one overview with submitted/successful/failed counts, A/B/C distribution, and one-line judgments for up to five A/B candidates. Phone screening sends one organized record per candidate; records over the per-message limit are truncated with a prompt to return to the app. |
 | **Incremental deduplication** | Appended resumes notify only newly evaluated results and include the cumulative role total; appended recordings send only entries not yet pushed successfully; a full re-screen after criteria changes is notified as a new version. |
 | **Reliable delivery** | Transient network errors, HTTP 429, and 5xx responses receive limited retries with rate limiting; push failures are recorded without changing the screening or phone task's business status. |
-| **Manual resume-notification retry** | From a completed resume-screening result, click "Retry Feishu notification" to send only pending results and see whether this attempt sent anything. The phone task view has no manual retry action. |
+| **Manual resume-notification retry** | From a completed resume-screening result, click "Retry Feishu notification" to send only pending results and see whether this attempt sent anything. The phone task view has no manual retry action wired up yet; the retry capability is provided by a backend endpoint. |
 | **Test Feishu link** | One-click test message in Settings to verify Webhook connectivity. |
 
 ## Technical highlights

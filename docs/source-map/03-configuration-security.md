@@ -26,7 +26,7 @@ frontend/src/ui/SettingsDialog.tsx
   -> public_settings() 追加 OCR 状态后返回前端
 ```
 
-`feishu_webhook_url` 会由公开设置返回前端；模型、ASR 和飞书签名密钥只返回 `api_key_configured`、`asr_configured`、`feishu_sign_configured` 布尔状态。
+`feishu_webhook_url` 会由公开设置返回前端；模型、ASR 和飞书签名密钥不回传明文，只返回 `api_key_configured`、`asr_configured`、`feishu_sign_configured` 布尔状态。公开设置同时返回 `feishu_push_enabled` 等非密钥开关字段。
 
 外部服务取值链路：
 

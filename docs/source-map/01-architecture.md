@@ -82,7 +82,7 @@ launcher.py 或 python -m app.main
 - 应用版本号：`app/__init__.py` 的 `__version__`（`packaging/version_info.txt` 为构建时派生，`packaging/talent-hub.iss` 通过构建参数接收版本）。
 - 简历和电话业务结构：`app/models.py`。
 - 电话最终摘要：通过 Pydantic 与必填结构校验、并尝试附加事实引用录音时间的 `CallSummary`；人工编辑以 `PUT /api/calls/<id>/items/<item_id>` 覆盖，编辑值持久化到同一 `summaries/*.json`。
-- 电话事实引用身份：`CallFact.id`。
+- 电话事实引用身份：`CallFact.ref`。
 - Excel 结构：`workbook_contract.py`。
 - Job 真实持久化状态：每个任务的 `job.json`，结果详情由 `评估结果.json` 补充。
 - Call 真实持久化状态：每个任务的 `record.json`，摘要详情由 `summaries/*.json` 补充。
