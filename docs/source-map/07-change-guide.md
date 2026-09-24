@@ -96,4 +96,4 @@
 
 源码地图文档组只描述当前代码事实和稳定架构约束；具体故障证据与临时调试过程放入 `debug/`。
 
-Markdown 格式的约定与检查命令见 `AGENTS.md` 第 2 节命令表与第 10 节，规则明细以仓库根目录 `.markdownlint.json` 为准。
+Markdown 格式的约定与检查命令见 `AGENTS.md` 的验证命令表与 Markdown 格式两节，规则明细以仓库根目录 `.markdownlint.json` 为准。
