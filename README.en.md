@@ -47,27 +47,23 @@
 
 ## What it solves
 
-During peak hiring, HR gets buried in repetitive work and real time for judgment keeps shrinking:
+The three most repetitive parts of hiring, and the ones whose judgment is easiest to distort by inconsistent standards: bulk resume screening, justifying and reviewing calls, and organizing phone recordings plus consolidating results.
 
-- **More resumes than there is time to read** — screening means reading every one; under pressure it's easy to score on instinct and miss good fits.
-- **Inconsistent standards, hard-to-explain calls** — different people, different days, different verdicts, and there's no grounding for keeping or dropping someone when candidates or hiring managers push back.
-- **Key steps scattered across tools** — screening, phone checks, and result organizing live in separate places, so information gets fragmented, easily missed, and hard to turn into reusable records.
-
-Talent Hub ties the most time-consuming, judgment-heavy steps into one flow: every call has a traceable basis, uncertain points are flagged, and results are ready to use. Settings, task materials, and results are stored locally by default; when model, ASR, or Feishu features are used, the corresponding content is sent to the configured service.
+Talent Hub runs these steps as one flow, leaves a verifiable basis for each one, and makes results ready to deliver. Settings, task materials, and results are stored locally by default; when model, ASR, or Feishu features are used, the corresponding content is sent to the configured service.
 
 ## HR productivity scenarios
 
-| Step | The usual bottleneck | After Talent Hub |
-| --- | --- | --- |
-| **Bulk screening** | Dozens to hundreds of resumes, read one by one and scored on instinct, so the bar shifts and good candidates get missed. | Upload a role description and a stack of resumes; get a tiered shortlist screened against one consistent standard at a glance. |
-| **Justifying & reviewing calls** | Candidates ask where they stand and hiring managers want the "why", but the reasoning isn't grounded; reviewing means re-reading everything. | Each judgment comes with a traceable basis, anything uncertain is flagged, and review only checks the evidence — no more full re-reads. |
-| **Phone confirmation** | Play back recordings, jot notes by hand, then organize and archive — slow and easy to miss things. | Upload recordings for several candidates at once; the key points are organized and anything uncertain is flagged, then reviewed and exported for records. |
-| **Delivering results** | Lists and notes live in different tools with no uniform format, so consolidating takes time and invites mistakes. | Automatically produce one unified evaluation outcome and shortlist, ready for scheduling and archiving. |
-| **Sharing results** | Watching progress at the computer, then manually formatting and forwarding the outcome to the group to keep teammates in the loop. | When a task finishes, the result summary is pushed automatically to your Feishu group, so you see the ranking and calls from your phone — no refreshing, no manual forwarding. |
+| Step | How Talent Hub handles it |
+| --- | --- |
+| **Bulk screening** | Screens against one consistent standard and returns a tiered shortlist |
+| **Justifying & reviewing calls** | Attaches a traceable basis to each judgment and flags uncertain points |
+| **Phone confirmation** | Transcribes recordings and organizes the key points; reviewed records export as files |
+| **Delivering results** | Produces one unified evaluation outcome and shortlist |
+| **Sharing results** | Pushes the result summary to a Feishu group when a task finishes |
 
 ## Current capabilities
 
-Currently supported modules — more will follow:
+Currently supported modules:
 
 ### Resume screening
 
@@ -87,7 +83,7 @@ Currently supported modules — more will follow:
 | Capability | Description |
 | --- | --- |
 | **Batch transcription** | Upload multiple recordings (m4a / wav / mp3 / ogg / opus) powered by Volcano Engine ASR. |
-| **AI summarization** | Uses a senior-recruiter perspective to produce structured notes, soft-skill evaluations that prioritize the selected focus dimensions without being limited to them, and optional Q&A detail (off by default). |
+| **AI summarization** | Uses a senior-recruiter perspective to produce structured notes, soft-skill evaluations that prioritize the selected focus dimensions without being limited to them, and an optional Q&A transcript (off by default to reduce output length and processing time). |
 | **Structured result delivery** | Code validates JSON and required structure only. It does not delete model-produced notes or soft-skill evaluations or change field status based on citations; citations are used only for audio positioning. |
 | **Manual review & download** | Date-based default task titles follow the interface language while manual titles remain unchanged; after per-candidate review, export a Markdown record for each candidate. |
 
@@ -100,11 +96,11 @@ Currently supported modules — more will follow:
 | **Incremental deduplication** | Appended resumes notify only newly evaluated results and include the cumulative role total; appended recordings send only entries not yet pushed successfully; a full re-screen after criteria changes is notified as a new version. |
 | **Reliable delivery** | Transient network errors, HTTP 429, and 5xx responses receive limited retries with rate limiting; push failures are recorded without changing the screening or phone task's business status. |
 | **Manual resume-notification retry** | From a completed resume-screening result, click "Retry Feishu notification" to send only pending results and see whether this attempt sent anything. The phone task view has no manual retry action wired up yet; the retry capability is provided by a backend endpoint. |
-| **Test Feishu link** | One-click test message in Settings to verify Webhook connectivity. |
+| **Test Feishu link** | Send a test message in Settings to verify Webhook connectivity. |
 
 ## Technical highlights
 
-- **Local-first**: settings, original task materials, and results are stored in the user data directory by default (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`), which is outside the source tree. When overridden with `TALENT_HUB_DATA_DIR` or `--data-dir`, the operator chooses the location. Parsed resume text is saved only when "Retain parsed text" is enabled.
+- **Local-first**: settings, original task materials, and results are stored in the user data directory by default (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`), which is outside the source tree. When overridden with `TALENT_HUB_DATA_DIR` or `--data-dir`, the operator chooses the location.
 - **Key security**: Windows encrypts model, ASR, and Feishu signature keys with the current user's DPAPI; macOS uses environment variables for secrets.
 - **Loopback isolation**: the service listens on `127.0.0.1` only and generates a per-session token at startup.
 - **Fairness safeguards**: model prompts prohibit using age, sex, ethnicity, place of origin, marital status, or reproductive status for evaluation or ranking. Code also filters hard requirements, A/B/C conditions, and negative signals against its built-in protected-attribute terms. These safeguards do not replace human bias review.
@@ -156,31 +152,31 @@ Currently supported modules — more will follow:
    python -X utf8 -m app.main
    ```
 
-The app opens your default browser on startup. On first use, enter the model service base URL, API key, and model name in Settings, then test the connection; on macOS, configure secrets with environment variables.
+The app opens your default browser on startup. On first use, on Windows enter the API endpoint, API key, and model name in Settings and test the connection; on macOS, provide secrets through environment variables and enter only the non-sensitive items such as the API endpoint and model name in Settings.
 
 > [!NOTE]
-> Text-based PDF, DOCX, TXT, and Markdown need no OCR. For scanned PDFs or images, install Tesseract (and the `chi_sim` language pack for Chinese resumes). The app checks `TESSERACT_CMD`, `PATH`, and common platform paths automatically; enter the executable path in Settings only if detection fails. On Windows, install it from the [UB Mannheim installer](https://github.com/UB-Mannheim/tesseract/wiki) and select Simplified Chinese during setup; on macOS, install it with `brew install tesseract tesseract-lang`.
+> Text-based PDF, DOCX, TXT, and Markdown need no OCR. For scanned PDFs or images, install Tesseract (and the `chi_sim` language pack for Chinese resumes). The app checks `TESSERACT_CMD`, `PATH`, and common platform paths automatically; enter the executable path in Settings only if detection fails. On Windows, install it from the [UB Mannheim installer](https://github.com/UB-Mannheim/tesseract/wiki) and select Simplified Chinese during setup;  A step-by-step guide is available in [APP_GUIDE「OCR 配置」](APP_GUIDE.md#ocr-配置) (Chinese).
 
 ## Application settings
 
-The Settings dialog (top-right) centrally manages the options below. "Model base URL / API key / Model name" are required; the rest are optional or tuned on demand.
+The Settings dialog (top-right) centrally manages the options below. "API endpoint", "API key", and "Model" are required; the rest are optional or tuned on demand.
 
 | Setting | Default / range | Description |
 | --- | --- | --- |
-| Model base URL | `https://api.openai.com/v1` | An OpenAI Chat Completions-compatible service with JSON output. Enter the base URL without `/chat/completions`; the app appends that path and does not require the URL to end in `/v1`. |
+| API endpoint | `https://api.openai.com/v1` | An OpenAI Chat Completions-compatible service with JSON output. Enter the base URL without `/chat/completions`; the app appends that path and does not require the URL to end in `/v1`. |
 | API key | empty | Model service access key; Windows encrypts it with DPAPI, while macOS uses the `TALENT_HUB_API_KEY` environment variable. |
-| Model name | empty | The model identifier to use, as defined by your model provider. |
-| Concurrency | 6 (1–12) | Number of candidates processed in parallel per batch. Increasing it raises parallel throughput; actual duration depends on candidate count, model latency, and provider rate limits. Lower it when rate-limited. |
-| Request timeout (seconds) | 180 (30–600) | Timeout for each ordinary model HTTP attempt. Each criteria-generation call and resume-evaluation call allows up to 3 and 2 retryable transport attempts, respectively; failed JSON/structure validation can start one more corrective call. Each phone-summarization call uses at least 300 seconds per attempt and allows up to 3 retryable transport attempts; failed structure validation can also start one more call. |
-| Tesseract path | empty | Tesseract executable path for scanned PDFs or image resumes. When empty, the app checks `TESSERACT_CMD`, `PATH`, and common platform paths. Text PDF/DOCX/TXT/Markdown need no OCR; install the `chi_sim` language pack for Chinese resumes. |
-| Retain parsed text | on | Whether to keep each resume's parsed text locally. When off, those texts are not saved, while parsed JD text and the parsing manifest without resume bodies remain stored. |
+| Model | empty | The model identifier to use, as defined by your model provider. |
+| Concurrency | 6 (1–12) | Number of candidates processed in parallel per batch. Duration depends on candidate count, model latency, and provider rate limits; lower it when rate-limited. |
+| Timeout (seconds) | 180 (30–600) | Timeout for each ordinary model HTTP attempt. Each criteria-generation call and resume-evaluation call allows up to 3 and 2 retryable transport attempts, respectively; failed JSON/structure validation can start one more corrective call. Each phone-summarization call uses at least 300 seconds per attempt and allows up to 3 retryable transport attempts; failed structure validation can also start one more call. |
+| OCR executable path | empty | Tesseract executable path for scanned PDFs or image resumes. When empty, the app detects it automatically (see the OCR note above). |
+| Keep parsed resume text in the local task folder | on | Whether to keep each resume's parsed text locally. When off, those texts are not saved, while parsed JD text and the parsing manifest without resume bodies remain stored. |
 | Speech-to-text key | empty | Volcano Engine large-model speech recognition (audio-file fast version) API key; Windows encrypts it with DPAPI, while macOS uses the `TALENT_HUB_ASR_API_KEY` environment variable. |
 | Generate phone screening details (Q&A transcript) | off | When enabled, phone summarization also produces a full Q&A transcript; leaving it off reduces model output length and processing time. |
 | Double-check A conclusions | off | When enabled, resume screening runs an independent review call for each initially A-rated candidate; a disagreement with the initial conclusion downgrades the candidate to B with a verification question. Increases model calls. |
 
 ### Speech-to-text (Volcano Engine) setup
 
-Phone-call transcription uses **Volcano Engine large-model speech recognition (audio-file fast version)** and needs just one API key.
+Phone-call transcription uses **Volcano Engine large-model speech recognition (audio-file fast version)** and requires only one API key.
 
 1. Open the [Volcano Engine Speech / Doubao voice console](https://console.volcengine.com/speech/app) and log in (register and complete real-name verification first if needed).
 2. Create an app and be sure to select **"Audio-file fast version / Large-model speech recognition fast version"** (resource `volc.bigasr.auc_turbo`); do not pick the standard or streaming variant, which cannot transcribe local files.
@@ -197,7 +193,7 @@ Phone-call transcription uses **Volcano Engine large-model speech recognition (a
 | `TALENT_HUB_API_KEY` | Injects the model API key via environment variable. On Windows, a saved key takes precedence and this variable is a fallback; on macOS, use this variable for the model key. |
 | `TALENT_HUB_ASR_API_KEY` | Injects the Volcano Engine ASR API key via environment variable; macOS uses this variable for speech-to-text. |
 | `TALENT_HUB_FEISHU_SIGN_SECRET` | Injects the Feishu bot signature secret via environment variable; the Webhook URL can still be saved in Settings. |
-| `TALENT_HUB_DATA_DIR` | Overrides the default data directory (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`) for settings, task materials, and result files. Parsed JD text is saved; parsed resume text is saved only when "Retain parsed text" is enabled. The operator is responsible for keeping a custom path outside the source tree. |
+| `TALENT_HUB_DATA_DIR` | Overrides the default data directory (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`) for settings, task materials, and result files. Parsed JD text is saved. The operator is responsible for keeping a custom path outside the source tree. |
 | `TESSERACT_CMD` | Specifies the Tesseract executable path; if unset, the app tries `PATH` and platform-specific common locations. |
 
 ## Feishu push setup (optional)
@@ -246,11 +242,11 @@ The script creates `dist/TalentHub.app` and `release/<version>/macos/TalentHub-m
 
 ## Data & security
 
-- App data is stored by default on the user's machine (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`), including settings, original task materials, parsed JD text, result files, phone transcripts, and organized records. Parsed resume text is saved only when "Retain parsed text" is enabled.
+- App data is stored by default on the user's machine (Windows: `%LOCALAPPDATA%\TalentHub`; macOS: `~/.local/share/TalentHub`), including settings, original task materials, parsed JD text, result files, phone transcripts, and organized records. Parsed resume text is saved only when the setting "Keep parsed resume text in the local task folder" is enabled.
 - On Windows, API keys, ASR keys, and Feishu signature secrets are encrypted with DPAPI; on macOS, secrets are provided through environment variables. Plaintext secrets are never returned by the API.
 - The service listens only on the loopback address, and all API requests require a session token.
 - When criteria are generated, the job description is sent to the configured model service; when candidates are evaluated, parsed resume text is sent to that model service. For phone screening, original recording content is sent to Volcano Engine ASR, and the transcript is sent to the model service. Evaluate each provider's data handling and compliance before use.
-- Feishu push sends the configured message content to Feishu servers through a Webhook. The app replaces common mobile-number, landline, and email formats, but unusual formats may not be detected. Keep the Webhook URL private and review outbound content before enabling push.
+- Feishu push sends the configured message content to Feishu servers through a Webhook. Keep the Webhook URL private; the masking boundary for outbound content is described in the Feishu push setup tip.
 - Keep manual review for critical roles, campus hires, scarce talent, and high-risk rejections.
 
 ## Project layout

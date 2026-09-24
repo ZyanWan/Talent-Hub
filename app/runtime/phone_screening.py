@@ -1,4 +1,4 @@
-"""电话确认文本的整理、校验、复核与渲染。"""
+"""电话确认文本的整理、校验与渲染。"""
 
 from __future__ import annotations
 
@@ -126,8 +126,8 @@ def summarize_user_prompt(
 ) -> str:
     """构建信息整理的 user prompt，内嵌输出 schema、可选软性关注项与转写原文。
 
-    include_qa_records=False 时不在 schema 中要求 qa_records，减少一个全文级输出，
-    显著缩短整理耗时；关闭后即使模型自行输出 qa_records，也会在 _validated_summarize 解析后强制清空。
+    include_qa_records=False 时 schema 不含 qa_records，省去一个全文级输出，显著缩短整理耗时；
+    模型自行输出时也会在 _validated_summarize 解析后清空。
     """
     schema: dict[str, object] = {
         "candidate_name": "候选人姓名（本次输出保持原样；留空则由 HR 或调用方填写）",
@@ -301,8 +301,8 @@ def _locate_ts_for_ref(text: str, ref: str) -> tuple[float, float] | None:
     raw_index = text.find(ref)
     if raw_index >= 0:
         return _locate_ts_before(text, raw_index)
-    # 原文未命中时不做宽松归一兜底：归一化（去空白/标点/中文数字转换）会丢失字符位置映射，
-    # 强行返回全文时间戳会定位到与事实不符的位置；宽松匹配交由 utterances 层精确定位，否则降级为无定位。
+    # 不做宽松归一兜底：归一化（去空白/标点/中文数字）会丢失字符位置映射，定位结果与事实不符；
+    # 宽松匹配交由 utterances 层处理，失败则保持无定位
     return None
 
 
@@ -344,9 +344,8 @@ def _find_ts_in_utterances(utterances: list[dict], ref: str) -> tuple[float, flo
 def attach_fact_timestamps(summary: CallSummary, utterances: list[dict], rendered_transcript: str) -> CallSummary:
     """为每个事实关联录音时间区间（秒），供前端点击回放定位。
 
-    定位顺序：转写文本（summary.transcript）时间戳解析 → 原始转写渲染文本逐行解析
-    → 原始 utterances 数组宽松匹配（支持窗口拼接）。全部失败保持 None，前端降级为不可点击。
-    时间戳由程序计算，不依赖模型输出的 timestamp 字段。
+    依次尝试：转写文本时间戳解析 → 原始转写渲染文本逐行解析 → 原始 utterances 数组宽松匹配
+    （支持窗口拼接）；全部失败保持 None，前端降级为不可点击，不依赖模型输出的 timestamp 字段。
     """
     for fact in summary.facts:
         if not fact.ref.strip():
@@ -512,11 +511,9 @@ class CallProcessor:
     ) -> tuple[CallSummary, str]:
         """单次调用完成信息整理；结构校验失败时携带错误信息重试一次。
 
-        timeout 为本次整理调用的超时预算（秒）；None 表示沿用客户端默认。
-        长转写输出远超普通请求，调用方应传入更大预算以减少无谓超时。
-        include_qa_records=False 时解析后强制清空 qa_records（模型即使自行输出也被丢弃），
-        保证开关在程序侧强制生效，不依赖模型遵守 prompt。
-        返回 (summary, transcript)：transcript 恒为输入转写原文（录音时间戳的定位基准）。
+        timeout 为本次调用的超时预算（秒），None 沿用客户端默认；长转写输出大，调用方应传入
+        更大预算。include_qa_records=False 时解析后清空 qa_records，开关在程序侧生效。
+        返回 (summary, transcript)，transcript 恒为输入转写原文，也是时间戳定位基准。
         """
         last_error: Exception | None = None
         dimensions = soft_skill_dimensions or []
@@ -555,7 +552,7 @@ class CallProcessor:
         self, call_id: str, item_id: str, settings: AppSettings,
         cancel_event: threading.Event | None,
     ) -> None:
-        """串行处理单个录音条目：转写 → 信息整理 → 复核 → 落盘。"""
+        """串行处理单个录音条目：转写 → 信息整理 → 落盘。"""
         call = self.repository.get(call_id)
         item = next((entry for entry in call.get("items", []) if entry.get("id") == item_id), None)
         if item is None:

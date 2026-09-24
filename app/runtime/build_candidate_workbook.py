@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build the talent hub workbook from JSON rows.
+"""Build the Talent Hub workbook from JSON rows.
 
-This script enforces the shared four-sheet core contract while allowing extra
+This script enforces the shared five-sheet core contract while allowing extra
 fields. Headers are derived from dict rows or an explicit "_headers" entry.
 """
 
@@ -33,7 +33,7 @@ try:
         STANDARD_SHEET,
         SUMMARY_SHEET,
     )
-except ModuleNotFoundError:  # Support python -m scripts.build_candidate_workbook
+except ModuleNotFoundError:  # 作为包模块导入时改用相对导入
     from .workbook_contract import (
         CONCLUSION_FILL_COLORS,
         DEFAULT_HEADERS_PER_SHEET,
@@ -63,11 +63,8 @@ def load_rows(path: Path) -> dict:
 def resolve_headers(sheet_data: object, sheet_name: str) -> tuple[list[str], list[object]]:
     """Return (headers, rows) for a given sheet's data.
 
-    The JSON may supply:
-      - A list of dicts → headers come from dict keys (union of all keys).
-      - A list of lists → look for "_headers" key in parent or fall back.
-      - A dict with "_headers" + "_rows" → use those explicitly.
-      - None / missing → empty.
+    Accepts a list of dicts (headers = union of dict keys), a list of lists (headers from the
+    parent "_headers"), a {"_headers": [...], "_rows": [...]} dict, or None/missing → empty.
     """
     # Explicit {"_headers": [...], "_rows": [...]} format
     if isinstance(sheet_data, dict):

@@ -1,10 +1,6 @@
-// =====================================================================
-// API client：请求/响应统一封装
-//   - 请求强制 X-App-Token（meta[name="app-token"]，模块加载时一次读取）
-//   - string body 自动 Content-Type: application/json
-//   - 错误响应解析 {detail}，按语言透传（zh 直接透传 / en 且 ASCII 透传 / 否则通用文案）
-//   - content-type 含 "application/json" → json()，否则返回原始 Response（Blob/下载契约）
-// =====================================================================
+// API client。所有请求强制携带 X-App-Token（模块加载时从 meta[name="app-token"] 读取一次）。
+// string body 自动置 application/json；错误响应取 {detail} 按语言透传；content-type 非 JSON 时返回
+// 原始 Response，供 Blob 与下载消费。
 
 import { getLanguage, setLanguage, t } from "../i18n";
 

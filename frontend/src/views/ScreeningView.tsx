@@ -1,15 +1,6 @@
-// =====================================================================
-// 简历筛选任务流视图（React）。
-// - setup：JD textarea + 简历拖拽/选择（name:size:lastModified 去重）+ 已选列表移除 + 开始筛选
-// - 任务创建：POST /api/jobs {title} → PUT /api/jobs/{id}/jd → 逐份 PUT /api/jobs/{id}/resumes
-//   （upload.accepted=false + duplicate_of 判重）→ POST /api/jobs/{id}/start → 轮询
-// - progress：1200ms 轮询 GET /api/jobs/{id}，回调校验当前视图（router currentView === "screening"）
-//   与任务 id 未变（防跨任务串扰），网络错误不停止轮询；阶段/进度/实时结果/取消/重试/错误列表
-// - criteriaReview：标准校准表单（essence + 列表字段 + 规则字段），保存并开始/重新筛选
-// - results：汇总统计、A/B/C 过滤、8 列表格、编辑标准/重试/飞书通知重试/下载（PreviewDialog）
-// - 轮询定时器存全局 state.pollTimer，视图切换经 src/router（"screening" 视图 exit 清轮询）
-// - 追加简历（appendResumes）：仅 completed 且未归档任务可追加，全部重复且无 pending 时提示 noNewResumes
-// =====================================================================
+// 简历筛选任务流视图：setup / progress / criteriaReview / results 四个 section。
+// 轮询 1200ms，回调校验 currentView() === "screening" 且任务 id 未变，定时器存 state.pollTimer。
+// 追加简历仅对 completed 且未归档任务开放。
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { api } from "../api/client";
@@ -24,9 +15,7 @@ import { Progress } from "../ui/Progress";
 import { Tag, type ConclusionGrade } from "../ui/Tag";
 import { ResumeWorkspace, type StoredResumePreview } from "./ResumeWorkspace";
 
-// ---------------------------------------------------------------------
-// 类型与常量
-// ---------------------------------------------------------------------
+// ---- 类型与常量 ----
 
 export interface ScreeningViewProps {
   /** 当前 section 名：setup / progress / criteriaReview / results */
@@ -114,9 +103,7 @@ function jobView(job: Record<string, unknown> | null): string {
   return "progress";
 }
 
-// ---------------------------------------------------------------------
-// 格式化辅助
-// ---------------------------------------------------------------------
+// ---- 格式化辅助 ----
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -202,9 +189,7 @@ function cellText(value: string[] | string | undefined): string {
   return value || t("missingValue");
 }
 
-// ---------------------------------------------------------------------
-// 组件
-// ---------------------------------------------------------------------
+// ---- 组件 ----
 
 export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, resetSignal = 0 }: ScreeningViewProps) {
   const [, forceRender] = useState(0);
@@ -324,9 +309,8 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
     }
   }, [state.currentJob]);
 
-  // results 视图：同步 resultActions / 追加 FAB 显隐。
-  // 不依赖 deps：显隐同时受 view（App 状态）与 state.currentJob（全局对象）影响，
-  // 每次渲染后按当前值同步，避免任何一方变化未触发重跑。
+  // results 视图：同步 resultActions / 追加 FAB 显隐。显隐同时受 view 与 state.currentJob 影响，
+  // 故不声明 deps，每次渲染后按当前值同步。
   useEffect(() => {
     const resultActions = document.getElementById("resultActions");
     const appendFab = document.getElementById("appendResumesButton");
@@ -407,7 +391,7 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- setup：文件选择去重（name:size:lastModified）与移除 ----
+  // ---- setup：文件选择去重（name:size:lastModified） ----
 
   const addFiles = (fileList: FileList | File[]) => {
     const known = new Set(state.selectedResumes.map(fileKey));

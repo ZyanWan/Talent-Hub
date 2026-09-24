@@ -1,13 +1,6 @@
-// =====================================================================
-// 产物预览弹窗（React）：查看类弹窗。
-// - 查看类弹窗：关闭按钮 + ESC + 点遮罩关闭（无未保存输入，误触成本低）
-// - 两种预览：criteria（markdown 安全渲染，仅 h1-h3/ul/p，文本节点防注入）
-//   / workbook（sheet tabs + 表格，键盘左右/Home/End 切换，空表提示）
-// - 数据走 GET /api/jobs/{id}/preview/{kind}（api() 契约不变）
-// - 打开时中止上一次未完成请求（AbortController）
-// - 预览数据与请求句柄为组件本地状态；受控 props 由调用方传入，
-//   不写入全局 state，预览弹窗实例彼此独立
-// =====================================================================
+// 产物预览弹窗（查看类：关闭按钮 + ESC + 遮罩关闭）。
+// markdown 只渲染 h1-h3 / ul / p 且一律以文本节点输出；工作簿预览按 sheet 切换。
+// 预览数据与请求句柄为组件局部状态，不写入全局 state。
 
 import { createElement, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { api } from "../api/client";
@@ -138,7 +131,6 @@ export function PreviewDialog({ open, jobId, kind, onClose }: PreviewDialogProps
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // 开合动画：挂载后置 .is-visible 播放过渡，关闭时播完离场动画再卸载
   const { mounted, visible } = useDialogAnimation(open, 300);
 
   if (!mounted) return null;

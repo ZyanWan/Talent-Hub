@@ -54,9 +54,8 @@
 
 * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: #c9ccd1 transparent; }
 html { min-width: 320px; background: var(--canvas); overflow-y: scroll; }
-/* 消除「有滚动条 ↔ 无滚动条」页面切换时内容区宽度突变造成的横向跳动：
-   始终预留与滚动条等宽的 gutter（滚动条钻进 gutter、无滚动条时 gutter 为透明空白），内容区宽度恒定。
-   老浏览器不支持 scrollbar-gutter 时退回 overflow-y: scroll 常驻轨道（本项目轨道透明，视觉无感）。 */
+/* 消除「有滚动条 ↔ 无滚动条」页面切换时内容区宽度突变造成的横向跳动：始终预留与滚动条
+   等宽的 gutter；老浏览器退回 overflow-y: scroll 常驻轨道（本项目轨道透明，视觉无感）。 */
 @supports (scrollbar-gutter: stable) {
   html { overflow-y: auto; scrollbar-gutter: stable; }
 }
@@ -219,9 +218,8 @@ h3 { margin: 0; font-size: 13px; line-height: 1.4; font-weight: var(--font-semib
 .live-row { display: grid; grid-template-columns: minmax(120px, .8fr) 106px minmax(260px, 2fr); gap: 20px; align-items: center; margin-bottom: 7px; padding: 15px 17px; border-radius: 6px; background: rgba(255, 255, 255, .9); font-size: 12px; animation: row-in .3s ease both; }
 .live-row > span:last-child { color: var(--ink-soft); }
 
-/* 视图切换过渡：新视图纯淡入。hidden → 显示时动画自动重放，纯 CSS 无 JS 参与（复用 review-view 的 view-in）。
-   时长 0.38s + ease-in-out：透明度缓慢起步再提速，淡入过程可见，避免 0.24s + easeOut 快速起步导致的"瞬移"感。 */
-/* 配套元素（结果页导出按钮组、追加简历/追加录音 FAB）与 section 同步淡入，避免切换时顶栏/FAB 与内容不同步的突兀感。 */
+/* 视图切换过渡：新视图纯淡入，hidden → 显示时动画自动重放，纯 CSS 无 JS 参与。 */
+/* 配套元素（结果页导出按钮组、追加简历/追加录音 FAB）与 section 同步淡入，避免切换时顶栏/FAB 与内容不同步。 */
 .setup-view, .progress-view, .review-view, .results-view, .phone-view,
 #resultActions, #appendResumesButton, #appendCallAudioButton {
   animation: view-in .38s cubic-bezier(.42, 0, .58, 1) both;
@@ -302,8 +300,7 @@ td:first-child { color: var(--muted); }
 .candidate-preview-button svg { width: 16px; height: 16px; }
 .stored-resume-file { cursor: default; }
 /* ===== 模态框公共动效（居中弹窗统一：淡入 + 上移 + 微缩放） =====
-   五个居中对话框共享同一套开合动画，各对话框只保留尺寸/边框差异。
-   关闭逻辑由 JS 移除 .is-visible 并监听 transitionend，与 history 抽屉共用同一机制。 */
+   五个居中对话框共用同一套开合动画，各对话框只保留尺寸/边框差异。 */
 .settings-dialog, .resume-dialog, .preview-dialog, .compare-dialog, .confirm-dialog {
   opacity: 0;
   transform: translate3d(0, 12px, 0) scale(.985);
@@ -365,9 +362,8 @@ html:has(.preview-backdrop) {
 .preview-backdrop:has(.history-dialog) {
   justify-content: flex-start;
 }
-/* 危险操作确认：遮罩更暗（.44）。
-   必须用直接子代（> .confirm-dialog）限定：确认框遮罩嵌套在抽屉遮罩内部，
-   若用后代选择器会同时命中祖先抽屉遮罩，使两层遮罩都变 .44、叠加过深 */
+/* 危险操作确认：遮罩更暗（.44）。必须用直接子代（> .confirm-dialog）限定：确认框遮罩嵌套在
+   抽屉遮罩内部，用后代选择器会同时命中祖先遮罩，使两层遮罩叠加过深 */
 .preview-backdrop:has(> .confirm-dialog) {
   background: rgba(0, 0, 0, .44);
 }
@@ -432,7 +428,7 @@ html:has(.preview-backdrop) {
 .history-storage { min-height: 34px; display: flex; align-items: flex-end; justify-content: center; padding-top: 13px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; text-align: center; }
 
 .confirm-dialog { width: min(430px, calc(100vw - 32px)); border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); box-shadow: var(--shadow-dialog); }
-/* 危险操作确认框：遮罩更暗（覆盖公共动效组的 .34），保持原设计 */
+/* 危险操作确认框：遮罩更暗，覆盖公共动效组的 .34 */
 .confirm-dialog.is-visible::backdrop { background: rgba(0, 0, 0, .44); }
 .confirm-dialog form { padding: 28px; }
 .confirm-icon { width: 38px; height: 38px; display: grid; place-items: center; margin-bottom: 18px; border-radius: 50%; background: var(--red-soft); color: var(--red); }
@@ -462,7 +458,7 @@ html:has(.preview-backdrop) {
 .field small.ready { color: var(--blue-dark); }
 .field small.error { color: var(--red); }
 .field input, .field select { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 5px; background: #fff; color: var(--ink); outline: none; font-size: 12px; }
-/* 自定义下拉（复核策略）：触发按钮仿原生 select，菜单带淡入下滑动画 */
+/* 自定义下拉（关联岗位）：触发按钮仿原生 select，菜单带淡入下滑动画 */
 .custom-select { position: relative; }
 .custom-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 5px; background: #fff; color: var(--ink); font-size: 12px; font-family: inherit; cursor: pointer; }
 .custom-select-trigger:focus { outline: none; border-color: var(--focus-ring); }
@@ -720,7 +716,7 @@ html:has(.preview-backdrop) {
 .call-item-progress { display: flex; align-items: center; gap: 10px; padding: 0 15px 14px; }
 .call-progress-track { flex: 1; height: 4px; overflow: hidden; border-radius: 99px; background: var(--surface-muted); }
 .call-progress-track span { display: block; height: 100%; border-radius: inherit; background: #4673c4; transition: width .3s ease; }
-/* 处理中（转写/AI 整理）活动指示：条纹流动，区分"还在跑"与"卡住" */
+/* 处理中（转写/AI 整理）活动指示：条纹流动 */
 .call-item-progress.is-active .call-progress-track span {
   background-image: linear-gradient(45deg, rgba(255, 255, 255, .22) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .22) 50%, rgba(255, 255, 255, .22) 75%, transparent 75%, transparent);
   background-size: 14px 14px;

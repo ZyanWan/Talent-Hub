@@ -51,7 +51,7 @@
 | 简历预览与对比 | `resumeRenderCache`、`compareSelection` |
 | 电话确认 | `currentCall`、`callPollTimer`、`pendingCallFiles` |
 
-`App.tsx` 在启动、导航和任务记录变更时会协调写入 `settings`、`jobs`、`currentJob` 与 `currentCall`；这些写入不是业务视图越权。`GlobalState` 中未列入上表的声明当前不作为行为输入，不能仅因字段存在就把它们视为有效前端契约。组件内的表单、弹窗、请求序号和音频缓存保持局部状态。
+`App.tsx` 在启动、导航和任务记录变更时会协调写入 `settings`、`jobs`、`currentJob` 与 `currentCall`。`GlobalState` 中未列入上表的声明当前不作为行为输入，不能仅因字段存在就把它们视为有效前端契约。组件内的表单、弹窗、请求序号和音频缓存保持局部状态。
 
 - `frontend/src/api/client.ts` 是唯一 API client，负责 `X-App-Token`、JSON Content-Type、非 JSON 响应和 `detail` 错误透传。
 - `frontend/src/i18n/messages.ts` 是手工维护的双语消息源；新增或修改 key 时同步维护 `zh-CN` 与 `en`。`frontend/src/i18n/index.ts` 读写 `state.language`、持久化语言并广播变化。

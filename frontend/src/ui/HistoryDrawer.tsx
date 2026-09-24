@@ -1,22 +1,7 @@
-// =====================================================================
-// 历史任务抽屉（React）：查看类抽屉。
-// - 查看类抽屉：关闭按钮 + ESC + 点遮罩关闭
-// - 按当前视图固定展示 job 或 call 单列表（initialKind 由外层按视图传入），
-//   抽屉内 recent/archived tab 切换；
-//   分页 limit=50 + offset 追加「加载更多」，tab 计数显示 total
-// - 数据：GET /api/jobs?scope=&limit=&offset= → {jobs, total}、
-//   GET /api/calls?scope=... → {calls, total}；存储占用 GET /api/storage
-//   （job_count/jobs_bytes，仅 job 列表展示）
-// - 行操作：归档/恢复 POST /api/{jobs|calls}/{id}/archive|restore；
-//   永久删除 DELETE /api/{jobs|calls}/{id}（确认框，删除中按钮禁用 +
-//   deleting 文案 + toast）；queued/running 任务禁用归档与删除
-// - 当前任务切换：点击行 → onOpenJob/onOpenCall props 回调，组件不依赖
-//   screening/phone 模块；active 行按
-//   全局 state 的 currentJob/currentCall id 判断
-// - 记录变更成功：通过 onMutation 上报删除身份或归档/恢复后的服务端摘要，
-//   由外层同步当前工作区
-// - 语言切换经 i18n onChange 重渲染
-// =====================================================================
+// 历史任务抽屉（查看类：关闭按钮 + ESC + 遮罩关闭）。
+// 按 initialKind 固定展示 job 或 call 列表，只经 onOpenJob / onOpenCall / onMutation 与外部交互，
+// active 行按全局 state 的 currentJob / currentCall 判断。
+// 归档与删除对 queued/running 任务禁用。
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -379,7 +364,7 @@ export function HistoryDrawer({
       : displayJobTitle(deleteTarget.item.title)
     : t("untitledJob");
 
-  // 开合动画：抽屉 transform .3s（340ms 卸载），删除确认框用公共过渡时长
+  // 抽屉卸载延迟 340ms，与 transform .3s 对齐
   const drawerAnim = useDialogAnimation(open, 340);
   const confirmAnim = useDialogAnimation(Boolean(deleteTarget), 300);
 

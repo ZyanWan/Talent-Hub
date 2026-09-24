@@ -1,27 +1,6 @@
-// =====================================================================
-// 电话条目详情浮层（React）：详情展示与音频生命周期管理。
-// - 编辑类弹窗：仅关闭按钮 + ESC 退出，点遮罩不关闭（防误触打断录音/丢未保存输入）
-// - 详情内容：候选人（可编辑）/ 音频播放器 / narrative textarea / 可折叠面板
-//   （fields / facts / doubts / transcript）
-// - 音频：GET /api/calls/{call_id}/items/{item_id}/audio（Blob → createObjectURL），
-//   模块级 Map 缓存（audioBlobUrls）复用 + 并发下载合并（audioBlobPending）；
-//   仅切换任务/重置时整体 revoke（releaseAudioBlobs，浮层关闭保留缓存）；
-//   加载失败隐藏播放器并 toast callAudioLoadFail；0 秒首包解码失败时从 0.064s 重试一次
-// - 播放恢复：React 对同一条目复用 <audio> DOM 节点，轮询重绘不销毁元素，播放
-//   天然持续（captureCallPlayback/restoreCallPlayback：元素被
-//   重建时经 ref 回调捕获快照并暂停，加载完成后按快照补偿已播时长恢复，恢复前
-//   一次性监听 play/pause/seeked 防覆盖用户操作）；条目切换不跨条目恢复
-// - 编辑保存：PUT /api/calls/{id}/items/{item_id}，body {narrative, candidate_name,
-//   fields:[{key,label,value,status,note}]}（完整覆盖语义可清空），
-//   保存后回读 GET /api/calls/{id}
-// - facts 跳转：点击事实行 → currentTime = start_time 并播放
-// - Markdown 下载：GET .../items/{item_id}/download，文件名解析 filename* → filename
-//   → 回退 {itemId}.md
-// - 上一个/下一个：按已完成条目顺序切换（端点禁用态）
-// - 非 done 条目（转写中/整理中/failed）在详情内展示进度与错误
-// - 遮罩通过 Portal 挂到 body，避免受电话视图动画的层叠上下文限制
-// - 语言切换重渲染（i18n onChange）
-// =====================================================================
+// 电话条目详情浮层（编辑类：仅关闭按钮 + ESC，点遮罩不关闭），承载音频播放与字段编辑。
+// 音频 Blob 按 callId:itemId 模块级缓存，浮层关闭不释放，仅切换任务或重置时整体 revoke。
+// 保存走完整覆盖语义，成功后回读 GET /api/calls/{id} 并通知外层刷新。
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -31,9 +10,7 @@ import { state } from "../state";
 import { Button } from "../ui/Button";
 import { Progress } from "../ui/Progress";
 
-// ---------------------------------------------------------------------
-// 类型（字段与 GET /api/calls/{id} 响应契约一致，见 docs/source-map/06-api-runtime.md §11.3）
-// ---------------------------------------------------------------------
+// ---- 类型（字段与 GET /api/calls/{id} 响应契约一致） ----
 
 /** 电话任务 */
 export type CallTask = Record<string, unknown> & {
@@ -92,9 +69,7 @@ export interface CallItemDetailProps {
   onSaved: () => void;
 }
 
-// ---------------------------------------------------------------------
-// 音频 Blob 缓存（模块级，audioBlobUrls / audioBlobPending）
-// ---------------------------------------------------------------------
+// ---- 音频 Blob 缓存（模块级，audioBlobUrls / audioBlobPending） ----
 
 // 已加载的条目音频 Blob URL 缓存（key: callId:itemId），轮询重绘/重开详情时复用，
 // 避免泄漏与重复下载。浮层关闭不清缓存，仅切换任务/重置时整体释放。
@@ -138,9 +113,7 @@ async function loadCallAudio(callId: string, itemId: string): Promise<string | n
   return url;
 }
 
-// ---------------------------------------------------------------------
-// 播放状态快照（captureCallPlayback/restoreCallPlayback）
-// ---------------------------------------------------------------------
+// ---- 播放状态快照（captureCallPlayback/restoreCallPlayback） ----
 
 interface PlaybackSnapshot {
   currentTime: number;
@@ -161,7 +134,7 @@ function safePlay(audio: HTMLAudioElement): void {
 }
 
 /** 恢复播放：按快照补偿「捕获→恢复」已播时长后 seek+play；恢复前监听
- *  play/pause/seeked，用户已操作播放器则不覆盖（M2） */
+ *  play/pause/seeked，用户已操作播放器则不覆盖 */
 function restoreCallPlayback(audio: HTMLAudioElement, saved: PlaybackSnapshot | undefined): void {
   if (!saved || (!saved.playing && saved.currentTime <= 0)) return;
   let userTouched = false;
@@ -251,9 +224,7 @@ export function stageLabel(stage: string): string {
   return t("stageFallback");
 }
 
-// ---------------------------------------------------------------------
-// 组件
-// ---------------------------------------------------------------------
+// ---- 组件 ----
 
 /** 可折叠面板（<details> 结构） */
 function CallPanel({ title, children, defaultOpen = false }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
@@ -365,8 +336,7 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemKey, done, onToast]);
 
-  // 开合动画：挂载后下一帧置 .is-visible 播放入场；关闭先移除 .is-visible
-  // 播放离场动画（transform .3s）再回调 onClose 卸载
+  // 入场：挂载后下一帧置 .is-visible；离场：移除 .is-visible 后延时回调 onClose
   const [entered, setEntered] = useState(false);
   const [leaving, setLeaving] = useState(false);
   useEffect(() => {

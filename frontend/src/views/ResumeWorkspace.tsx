@@ -1,20 +1,6 @@
-// =====================================================================
-// 简历工作台弹窗（React）：编辑类弹窗。
-// - 编辑类弹窗：仅「关闭按钮 + ESC」退出，点遮罩不关闭
-// - 本地模式：文件列表读全局 state.selectedResumes（新增按 name:size:lastModified
-//   去重，支持移除与索引调整），添加按钮经隐藏文件输入追加
-// - stored 模式：由 props.stored（{jobId, filename, candidateName}）进入，
-//   单文件预览，隐藏导航与添加按钮
-// - 本地 PDF 预览：POST /api/resumes/preview?scale=（multipart 字段 file），
-//   页面按 name:size:lastModified 缓存到 state.resumeRenderCache，命中不重复
-//   请求；已存 PDF 预览：GET /api/jobs/{id}/resumes/{filename}/preview?scale=，
-//   不缓存
-// - 图片预览：本地 URL.createObjectURL(file)；已存 GET /api/jobs/{id}/resumes/
-//   {filename}（Blob → createObjectURL），切换/关闭时 revokeObjectURL
-// - 渲染与预取各持 AbortController：切换/关闭中止请求，预取跳过当前文件
-//   与已缓存项；错误（415/413/422/503 等）经 api() detail 透传到不可预览区
-// - 订阅 src/i18n 的 onChange，语言切换重渲染
-// =====================================================================
+// 简历工作台弹窗（编辑类：仅关闭按钮 + ESC，点遮罩不关闭），承担本地与已存简历预览。
+// 本地模式读 state.selectedResumes 并按 name:size:lastModified 去重；stored 模式为单文件预览。
+// 本地 PDF 页面缓存在 state.resumeRenderCache，已存 PDF 不缓存。
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { api } from "../api/client";
@@ -273,7 +259,6 @@ export function ResumeWorkspace({ open, stored, onClose, onFilesChanged }: Resum
     input.value = "";
   };
 
-  // 开合动画：挂载后置 .is-visible 播放过渡，关闭时播完离场动画再卸载
   const { mounted, visible } = useDialogAnimation(open, 300);
 
   if (!mounted) return null;

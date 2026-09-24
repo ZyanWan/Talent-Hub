@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 // =====================================================================
-// 静态托管与安全边界（集成测试，需 FastAPI 运行于 127.0.0.1:8765）
-//   验证：首页 token 注入 / 静态资源路径 / 无 token 403 / CSP 响应头
+// 静态托管与安全边界（集成测试；后端由 playwright.config 的 webServer 在 127.0.0.1:18765
+// 启动，APP_BASE_URL 可覆盖）：首页 token 注入、静态资源路径、无 token 403、CSP 响应头。
 // =====================================================================
 
 test("首页注入 meta app-token 且占位符被替换", async ({ request }) => {
@@ -28,7 +28,7 @@ test("静态资源路径可访问（脚本/样式/图标/字体）", async ({ re
   }
 });
 
-test("/health 响应字段保持（发布烟测依赖）", async ({ request }) => {
+test("/health 响应字段为冻结契约（发布烟测依赖）", async ({ request }) => {
   const resp = await request.get("/health");
   expect(resp.status()).toBe(200);
   const body = await resp.json();
@@ -64,7 +64,7 @@ test("有效 token 访问 /api/bootstrap → 200 且含 settings/jobs", async ({
   expect(body.settings).not.toHaveProperty("asr_api_key");
 });
 
-test("CSP 响应头保持（script-src 'self' 等冻结项）", async ({ request }) => {
+test("CSP 响应头为冻结契约（script-src 'self' 等）", async ({ request }) => {
   const resp = await request.get("/");
   const csp = resp.headers()["content-security-policy"] || "";
   expect(csp).toContain("script-src 'self'");

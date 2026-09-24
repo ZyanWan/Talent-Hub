@@ -1,8 +1,4 @@
-// =====================================================================
-// 空状态：支持两种形态。
-// - variant="history"：.history-empty-state（flex 列居中、muted 文案，可选图标）
-// - variant="table"：.empty-row > td（结果表空行，图标 + 文案，渲染 `tr.empty-row` 结构）
-// =====================================================================
+// 空状态：variant="history" 渲染 .history-empty-state，variant="table" 渲染整行占位的 tr.empty-row。
 
 import type { HTMLAttributes, ReactNode } from "react";
 

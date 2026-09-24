@@ -1,13 +1,5 @@
-// =====================================================================
-// 视图路由与生命周期：集中管理「视图切换」与「轮询启停」。
-// - registerView(name, { enter, exit })：注册视图生命周期钩子。约定：exit 负责停止「本视图自己的轮询」，
-//   enter 负责启动（如需）。router 保证同一时刻仅一个视图激活（show 先 exit 当前视图、再 enter 新视图），
-//   因此各视图只需管好自己的轮询字段、无需感知其他视图，天然互斥。
-// - show(name)：切到指定视图（离开当前视图、隐藏所有 section、进入新视图）。
-// - showSection(id)：只切换 section 可见性（同视图内重渲染时使用，不触发生命周期）。
-// - currentView()：当前视图名，供轮询回调判断是否应丢弃过期结果。
-// 路由行为契约：本模块不读取全局 state。
-// =====================================================================
+// 视图路由与生命周期：集中管理视图切换与轮询启停。
+// 契约：本模块不读取全局 state；同一时刻仅一个视图激活，各视图只在自己的 exit 停止所属轮询。
 
 export interface ViewHooks {
   enter?: () => void;
@@ -18,7 +10,7 @@ const SECTION_IDS = ["setupView", "progressView", "criteriaReviewView", "results
 const views = new Map<string, ViewHooks>();
 let current: string | null = null;
 
-// 元素查找：缺失时告警，帮助「新页面漏元素」类问题尽早暴露。
+// 元素查找：缺失时告警，尽早暴露新页面漏元素的问题。
 function $(id: string): HTMLElement {
   const node = document.getElementById(id);
   if (!node) console.warn(`[dom] Missing element #${id}`);

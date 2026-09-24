@@ -507,15 +507,11 @@ def normalize_for_match(value: str) -> str:
 def _has_text_anchor(
     text: str, normalized_resume: str, min_chars: int = 4, min_bigrams: int = 4
 ) -> bool:
-    """summary/note 是否存在与简历原文的事实关联（事实锚点）。
+    """summary/note 是否与简历原文存在事实关联（事实锚点）：放行合理推断、拦截完全编造。
 
-    用于允许基于简历上下文的合理推断、同时拦截完全编造。满足任一即视为有锚点：
-    1. 文本含连续不少于 min_chars 个字符且可命中原文的片段（默认 4）；
-    2. 文本含 4 位以上数字且该数字在原文中出现（时间线锚点，如"2016"）；
-    3. 文本与原文共享不少于 min_bigrams 个含汉字的二元组（默认 4，容忍转述式摘要，如"消费电子"）。
-    完全编造（与原文几乎零重叠）不满足以上任何一条，会被守卫降级。
-    min_bigrams 控制转述容忍度：值越高，仅凭简历通用词转述、无具体名词的文本越难通过锚点。
-    证据守卫对维度判定使用较高值；硬性门槛注记保留默认值（其推断以教育时间线等常规路径为主）。
+    以下任一成立即有锚点：原文命中不少于 min_chars 个连续字符的片段；文本中 4 位以上的数字在
+    原文出现（时间线锚点）；与原文共享不少于 min_bigrams 个含汉字的二元组（容忍转述）。
+    min_bigrams 越大越难通过，维度判定用较高值，硬性门槛注记用默认值。
     """
     if not text:
         return False
@@ -555,7 +551,7 @@ def apply_evidence_guard(evaluation: CandidateEvaluation, resume_text: str) -> C
             continue
         quote = dimension.quote.strip()
         quote_valid = bool(quote) and normalize_for_match(quote) in normalized_resume
-        # 维度判定收紧转述容忍度：仅凭简历通用词转述、无具体名词的摘要不能充当匹配/不匹配的支撑
+        # 维度判定收紧转述容忍度：只有通用词转述的摘要不能支撑匹配/不匹配
         anchored = quote_valid or _has_text_anchor(
             dimension.summary, normalized_resume, min_bigrams=6
         )
@@ -579,13 +575,9 @@ def apply_hard_gate_guard(
 ) -> CandidateEvaluation:
     """硬性门槛守卫：逐条校验判定与事实支撑，程序化强制「先过滤」。
 
-    - met/unmet 必须有原文事实支撑：逐字引文通过原文校验，或 note 中含可命中
-      原文的具体事实锚点（允许基于教育时间线、工作经历等做高概率推断）。
-      两者皆无才降为 unknown。
-    - 任一有效 unmet 或核心维度不匹配 → 程序判定 C，清空电话问题。
-    - 存在 unknown 或核心维度证据不足 → 程序判定 B，并生成核实问题。
-    - 全部硬条件和核心维度通过 → 程序判定 A。
-    - criteria 中的硬性门槛未被模型判定时按 unknown 补齐。
+    met/unmet 的引文或 note 须命中原文，两者皆无则降为 unknown；criteria 中未被模型判定的
+    硬性门槛按 unknown 补齐。据此定级：任一有效 unmet 或核心维度不匹配 → C 并清空电话问题；
+    存在 unknown 或核心维度证据不足 → B 并生成核实问题；全部通过 → A。
     """
     normalized = normalize_for_match(resume_text)
     warnings: list[str] = []
@@ -1042,7 +1034,7 @@ class EvaluationEngine:
             settings = self.settings_store.load()
             if not settings.is_ready:
                 raise RuntimeError("模型配置不完整，请先完成配置并测试连接。")
-            # 老会话（两阶段校准功能前创建）没有 criteria_jd_file 记录，标准即基于当前 JD 生成，应信任
+            # 缺少 criteria_jd_file 记录时，标准只能是基于当前 JD 生成，视为一致
             criteria_ready = bool(job.get("criteria_file")) and (
                 not job.get("criteria_jd_file") or job.get("criteria_jd_file") == job.get("jd_file")
             )
@@ -1081,7 +1073,7 @@ class EvaluationEngine:
         if not (results_file.is_file() and (job_dir / "筛选标准.json").is_file()):
             return None
         meta = job.get("results_meta") or {}
-        # JD 一致性：优先 results_meta 记录，缺失时回退 criteria_jd_file；两者皆缺（老会话）则信任现有结果
+        # JD 一致性：优先 results_meta 记录，缺失时回退 criteria_jd_file；两者皆缺视为一致
         jd_recorded = meta.get("jd_file") or job.get("criteria_jd_file")
         if jd_recorded and jd_recorded != job.get("jd_file"):
             return None

@@ -646,7 +646,7 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             _size, fingerprint = await save_stream(request, target, 0, max_bytes=100 * 1024 * 1024)
-            # 内容指纹查重：与筛选简历同款机制，重复文件不落库、不新增条目（防误传重复录音白花 ASR 费用）。
+            # 内容指纹查重：与简历上传相同的 SHA-256 指纹，重复文件不落库、不新增条目，避免重复支付 ASR 费用。
             audio_hashes = dict(call.get("audio_hashes", {}))
             duplicate_of = next(
                 (stored_name for stored_name, stored_hash in audio_hashes.items() if stored_hash == fingerprint),

@@ -1,25 +1,6 @@
-// =====================================================================
-// 电话确认任务流视图（React）。
-// - 新建表单：标题 / 岗位名 / 关联岗位下拉（GET /api/jobs?scope=recent&limit=100，
-//   createCustomSelect 复用）+ 岗位联动导入（criteria-json 的 bonus_signals 关键词
-//   匹配预设维度，零额外模型调用）+ 软性维度勾选 + 录音选择（拖拽/点击，音频类型）
-// - 任务创建：POST /api/calls {title, title_mode, job_title, job_id, soft_skill_focus,
-//   soft_skill_dimensions}
-// - 历史任务加载：递增请求序号保证仅最后一次选择可写入 currentCall；最新请求
-//   失败时清空恢复键并重置工作区，视图退出与外层 reset 同时使在途请求失效
-// - 录音上传：PUT /api/calls/{id}/audio?filename=（File 直传），upload.accepted=false +
-//   duplicate_of 判重；重复计数经 duplicateAudioSkipped toast；全部重复 →
-//   noNewAudio 提示，不触发整理
-// - 追加录音：仅 call done 且未归档时显示（shell 渲染的 FAB），追加后自动 process
-// - 处理流程：POST /api/calls/{id}/process（failed/cancelled 重试同端点）
-// - 轮询：2500ms GET /api/calls/{id}，回调校验当前视图（currentView() === "phone"）
-//   与 call id 未变（防跨任务串扰），网络错误不停止轮询；定时器存
-//   state.callPollTimer，"phone" 视图 exit 清轮询（src/router 保证互斥）
-// - 条目卡片列表：音频名 / 候选人名 / 状态徽章 / 进度 / 错误；done 卡片头部为
-//   可点击按钮（详情浮层与音频播放由详情实现承载，此处仅渲染卡片结构）
-// - 取消：POST /api/calls/{id}/cancel（done 条目保留、中间态回滚由服务端收敛）
-// - 状态机：draft（新建表单）/ queued / running / done / failed / cancelled
-// =====================================================================
+// 电话确认任务流视图：新建表单、录音上传、处理/取消/重试、轮询与条目卡片列表。
+// 轮询 2500ms，回调校验 currentView() === "phone" 且任务 id 未变，定时器存 state.callPollTimer。
+// 追加录音仅对 done 且未归档任务开放。
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { api } from "../api/client";
@@ -32,14 +13,12 @@ import { Progress } from "../ui/Progress";
 import { createCustomSelect, type CustomSelectHandle } from "../ui/customSelect";
 import { CallItemDetail, callItemStatusLabel, releaseAudioBlobs, stageLabel, type CallTask } from "./CallItemDetail";
 
-// ---------------------------------------------------------------------
-// 类型与常量
-// ---------------------------------------------------------------------
+// ---- 类型与常量 ----
 
 export interface PhoneViewProps {
   /** 当前 section 名（"phone" 时视图激活） */
   view: string | null;
-  /** 历史抽屉打开电话任务的请求（seq 递增保证重复打开同一条目也触发加载） */
+  /** 历史抽屉打开电话任务的请求 */
   callOpenRequest?: { id: string; seq: number } | null;
   onToast: (message: string) => void;
   /** ASR 未配置时打开设置弹窗 */
@@ -83,9 +62,7 @@ const SOFT_SKILL_KEYWORD_MAP: Array<{ key: string; keywords: string[] }> = [
   { key: "passion", keywords: ["热爱", "兴趣", "激情", "喜欢"] },
 ];
 
-// ---------------------------------------------------------------------
-// 格式化辅助
-// ---------------------------------------------------------------------
+// ---- 格式化辅助 ----
 
 function formatDate(value: string | undefined): string {
   if (!value) return "";
@@ -135,9 +112,7 @@ function stopCallPolling(): void {
   state.callPollTimer = null;
 }
 
-// ---------------------------------------------------------------------
-// 组件
-// ---------------------------------------------------------------------
+// ---- 组件 ----
 
 export function PhoneView({
   view,

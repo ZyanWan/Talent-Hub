@@ -32,7 +32,7 @@ try:
         VALID_PHONE_PRIORITIES,
         VALID_STATUS_VALUES,
     )
-except ModuleNotFoundError:  # Support python -m scripts.validate_workbook
+except ModuleNotFoundError:  # 作为包模块导入时改用相对导入
     from .workbook_contract import (
         CONCLUSION_FILL_COLORS,
         CONCLUSION_VALUES,

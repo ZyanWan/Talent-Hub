@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-// 冒烟测试：验证 Playwright 可访问 FastAPI 托管的现有前端。
-// 运行前需先启动后端：python -m app.main --no-browser（默认 127.0.0.1:8765）。
+// 冒烟测试：验证 Playwright 可访问 FastAPI 托管的前端。
+// 后端由 playwright.config 的 webServer 自动启动（默认 127.0.0.1:18765）。
 
 test("首页可加载且包含 app-shell", async ({ page }) => {
   await page.goto("/");

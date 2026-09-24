@@ -1,17 +1,6 @@
-// =====================================================================
-// 设置弹窗（React）：编辑类弹窗。
-// - 编辑类弹窗：仅「关闭按钮 + ESC」退出，点遮罩不关闭（防止误触丢未保存输入）
-// - 密钥语义：api_key / asr_api_key / feishu_sign_secret 打开弹窗时恒为空
-//   （不回填明文密钥）；留空提交空串表示保留已存值（服务端仅覆盖非空字段）；
-//   「清除 ASR」「清除飞书签名」置 clear_asr / clear_feishu_sign=true 并提交
-//   表单，对应密钥字段同时提交空串
-// - 保存 PUT /api/settings，成功后写回全局 state.settings（settings 模块自持
-//   字段）；测试模型连接 POST /api/settings/test（zh 优先展示服务端返回的
-//   result.message，en 固定通用文案）；测试飞书 POST /api/settings/feishu-test
-// - 请求负载键名/端点固定；结果提示区
-//   .dialog-message（error 追加 .error）；语言切换经 i18n onChange 重渲染
-//   并清空结果提示
-// =====================================================================
+// 设置弹窗（编辑类：仅关闭按钮 + ESC 退出，点遮罩不关闭）。
+// 契约：密钥输入恒为空，留空提交表示保留已存值；清除按钮置一次性 clear_* 标志，由下一次提交消费并复位。
+// 保存、模型连接测试与飞书测试共用 buildPayload()。
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../api/client";
@@ -134,7 +123,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         return () => window.removeEventListener("keydown", onKey);
     }, [open, onClose]);
 
-    // 开合动画：挂载后置 .is-visible 播放过渡，关闭时播完离场动画再卸载
     const { mounted, visible } = useDialogAnimation(open, 300);
 
     if (!mounted) return null;

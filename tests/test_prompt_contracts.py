@@ -355,7 +355,7 @@ class PhoneContractTests(unittest.TestCase):
         self.assertIn("期望税前月薪两万元", narrative)
         self.assertIn("能够主动确认薪酬结构", narrative)
 
-    def test_legacy_structured_phone_content_remains_readable(self) -> None:
+    def test_dict_shaped_phone_content_is_coerced(self) -> None:
         summary = CallSummary.model_validate({
             "remark_sections": [{
                 "title": "一、项目经历",

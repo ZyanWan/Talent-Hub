@@ -1,9 +1,7 @@
 """电话确认任务与条目的状态机：集中定义合法转换、收敛与重试规则。
 
-条目状态：queued → transcribing → summarizing → done
-         任意处理中状态 → failed；failed 可重试回 queued
-取消/中断时 transcribing/summarizing 收敛回 queued
-任务级状态：draft → running → done / failed / cancelled；failed / cancelled 可重跑
+条目：queued → transcribing → summarizing → done；处理中状态 → failed，failed 可重试回 queued；
+取消/中断时中间态收敛回 queued。任务：draft → running → done / failed / cancelled，后两者可重跑。
 """
 
 from __future__ import annotations
@@ -68,8 +66,7 @@ def any_item_failed(items: list[dict]) -> bool:
 def reset_failed_items(items: list[dict]) -> bool:
     """把失败条目重置为 queued（重试语义）；done 条目永不动。返回是否有重置。
 
-    重置同时清除旧 summary/reviewed：重试即重新生成，避免失败重跑后
-    残留与 failed 状态矛盾的旧整理结果。
+    重置同时清除旧 summary：重试即重新生成，避免失败重跑后残留与 failed 状态矛盾的整理结果。
     """
     reset = False
     for entry in items:

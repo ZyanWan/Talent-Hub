@@ -1,11 +1,5 @@
-// =====================================================================
-// 按钮基础组件：class 名与状态语义对齐全局按钮样式体系。
-// - variant 映射：primary → .primary-button（黑底白字）、secondary → .secondary-button（白底描边）、
-//   danger → .danger-button（红底）、icon → .icon-button（圆形 36px）、send → .send-button（黑色主 CTA）
-// - busy 状态：加 .is-busy（前置 13px spinner 由 CSS ::before 绘制）、
-//   同时置 disabled、写 aria-busy="true"；非 busy 时不携带 aria-busy 属性
-// - 默认 type="button"，提交按钮由调用方显式传 type="submit"
-// =====================================================================
+// 按钮基础组件：variant 映射到全局按钮样式类；busy 时加 .is-busy 并置 disabled 与 aria-busy。
+// 默认 type="button"，提交按钮由调用方显式传 type="submit"。
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 

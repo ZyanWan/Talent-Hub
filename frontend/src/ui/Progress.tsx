@@ -1,8 +1,5 @@
-// =====================================================================
-// 进度条：对齐 .progress-track（高 4px、圆角、--surface-muted 底）内嵌填充 span，
-// 填充色 #4673c4、宽度经 style 内联控制并做 0-100 收敛。
-// 电话视图的 .call-progress-track 与基础进度条结构一致，通过 className 传覆盖类名复用。
-// =====================================================================
+// 进度条：对齐 .progress-track 结构，百分比收敛到 0-100 后内联为宽度。
+// 电话视图的 .call-progress-track 结构一致，经 className 复用本组件。
 
 import type { HTMLAttributes } from "react";
 

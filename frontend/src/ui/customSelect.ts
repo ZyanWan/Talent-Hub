@@ -1,17 +1,5 @@
-// =====================================================================
-// 自定义下拉组件：隐藏的原生 <select> 做值载体 + 自绘菜单。
-// - 值读写与 change 事件仍走原生 select，消费方零改动
-// - 菜单从 select.options 渲染，动态选项变化后调用 sync() 重建
-// - 展开/收起过渡、键盘导航（方向键/Enter/Space/Tab/Escape）
-// - 方向自适应：按最近滚动容器/视口底部判断向上/向下弹出，菜单限高 300px 内部滚动
-// - 订阅 src/i18n 的 onChange，语言切换时自动重建菜单
-// 用法：
-//   const sel = createCustomSelect({ wrap, select });
-//   // wrap   = .custom-select 容器（内含 .custom-select-trigger 与 .custom-select-menu）
-//   // select = 隐藏的原生 select（选项来源 + 值载体，值变化派发 change 事件）
-//   sel.sync();   // 选项/值变化后重建菜单（值回填、动态选项加载完成后调用）
-//   sel.close();  // 收起菜单
-// =====================================================================
+// 自定义下拉组件：隐藏的原生 <select> 作值载体 + 自绘菜单。
+// 契约：值读写与 change 事件仍走原生 select，消费方零改动；选项变化后调用 sync() 重建菜单。
 
 import { onChange } from "../i18n";
 

@@ -1,17 +1,6 @@
-// =====================================================================
-// AI 横向对比弹窗（React）：查看类弹窗。
-// - 查看类弹窗：关闭按钮 + ESC + 点遮罩关闭；对比进行中关闭 = 触发取消
-// - 候选人选择在结果页完成（仅 A/B 结论可参与，C 类排除，至少 2 人才能发起）；
-//   弹窗打开即用传入 candidates 自动发起对比（点击即运行），
-//   不再提供弹窗内二次勾选
-// - 请求 POST /api/jobs/{job_id}/compare?cancel_key=<uuid>，body {files: [...]}
-//   （服务端再排序去重）；cancel_key 由前端生成，完成/失败/取消后置空
-// - 取消 POST /api/jobs/{id}/compare/cancel（body {cancel_key}），失败可忽略；
-//   后端取消对比请求返回 499，前端捕获后展示 compareFail 文案
-// - 缓存命中：后端按结果哈希缓存直接返回 ranking，前端直出结果
-// - 结果展示 ranking 列表 [{candidate, rank, reason}]，按结论徽章着色
-// - 语言切换经 i18n onChange 重渲染（结论徽章 / meta 文案随语言变化）
-// =====================================================================
+// 横向对比弹窗（查看类：关闭按钮 + ESC + 遮罩关闭）。
+// 勾选只在结果页完成，弹窗打开即用传入的 candidates 发起 POST /api/jobs/{job_id}/compare?cancel_key=<uuid>；
+// 进行中关闭触发取消（POST .../compare/cancel），被取消的请求返回 499，前端丢弃晚到的结果。
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -37,7 +26,7 @@ export interface CompareRankingItem {
 export interface CompareDialogProps {
   open: boolean;
   jobId: string;
-  /** 结果列表（结果页的数据行），用于勾选与结论徽章查询 */
+  /** 结果页数据行：用于取出 files 发起对比，并按 source_file 关联结论徽章 */
   candidates: CompareCandidate[];
   onClose: () => void;
 }
@@ -151,7 +140,6 @@ export function CompareDialog({ open, jobId, candidates, onClose }: CompareDialo
     return () => window.removeEventListener("keydown", onKey);
   }, [open, handleClose]);
 
-  // 开合动画：挂载后置 .is-visible 播放过渡，关闭时播完离场动画再卸载
   const { mounted, visible } = useDialogAnimation(open, 300);
 
   if (!mounted) return null;

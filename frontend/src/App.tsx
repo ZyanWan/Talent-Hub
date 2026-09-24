@@ -1,26 +1,6 @@
-// =====================================================================
-// 应用根组件（shell / 顶栏 / 启动流程 / 视图容器）
-// - 顶栏：品牌区（wordmark + 历史/新建按钮 + tool-strip 工具切换）、语言切换
-//   （zh-CN/EN，写 src/i18n 的 state.language 并同步 document.title 与 html lang；
-//   切换经 View Transition 整页交叉淡化）、
-//   连接状态（configDot/configStatus，按 bootstrap settings.is_ready + model 渲染）、
-//   设置按钮（SettingsDialog）、退出按钮（confirm → POST /api/shutdown → 退出页）
-// - 启动流程：GET /api/bootstrap → 写 state.settings/jobs → 按 localStorage
-//   talentHub.activeTool 分流（phone → 电话视图；screening 有 lastJob → 按任务
-//   状态路由 results/criteriaReview/progress，失败回落 setup；无 lastJob → setup）
-//   → !settings.is_ready 自动打开设置弹窗 → 隐藏 startup-loading
-// - 视图容器：筛选四视图（setup/progress/criteriaReview/results）由 src/views/ScreeningView
-//   渲染、电话视图由 src/views/PhoneView 渲染（router 管理各 section 显隐；navigate 对筛选
-//   子视图统一 routerShow("screening")，离开时触发 "screening" 视图 exit 清筛选轮询；进入
-//   phone 时 routerShow("phone") 触发 "phone" 视图 exit 清电话轮询）；document.body.dataset.view
-//   写入值沿用既有视图命名约定；viewTitle 在电话视图隐藏，筛选视图按任务标题显示
-// - resultActions（下载筛选标准/评估表格）与追加 FAB 仍由 shell 渲染，显隐与点击由
-//   ScreeningView 同步（results 视图 completed/未归档时可见）
-// - 历史记录生命周期由 HistoryMutation 统一提交：命中当前任务时同步归档摘要或重置
-//   工作区；筛选任务加载使用递增序号，仅最后一次请求可写入 currentJob
-// - class 名沿用 shell 体系（app-shell/topbar/brand-group/
-//   tool-strip/language-switch/connection-state），响应式断点行为由样式表接管
-// =====================================================================
+// 应用根组件：外壳、顶栏、启动流程与视图容器。
+// App 是 settings/jobs/currentJob/currentCall 的协调写入方；section 的 hidden 由 src/router 直接管理 DOM，
+// React 不参与其显隐 reconcile；历史记录变更由 HistoryMutation 统一提交。
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -77,8 +57,9 @@ export function App() {
   const [exited, setExited] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [resetSignal, setResetSignal] = useState(0);
-  // 电话视图：工具切换到 phone 时递增（工作区重置），历史抽屉打开任务的请求（seq 递增）
+  // 工具切换到电话视图时递增，驱动 PhoneView 重置工作区
   const [phoneResetSignal, setPhoneResetSignal] = useState(0);
+  // 历史抽屉打开电话任务的请求；seq 递增保证重复打开同一条目也触发加载
   const [callOpenRequest, setCallOpenRequest] = useState<{ id: string; seq: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const jobOpenSeqRef = useRef(0);
@@ -163,8 +144,7 @@ export function App() {
     [navigate, resetPhoneWorkspace, resetScreeningWorkspace]
   );
 
-  // 首帧隐藏全部视图区与全局动作容器：可见性由 src/router 直接管理 DOM hidden，
-  // React 不参与这些元素 hidden 属性的 reconcile（语言切换重渲染不会覆盖 router 的显隐）
+  // 首帧隐藏全部视图区与全局动作容器：hidden 由 src/router 直接管理，React 不参与其 reconcile
   useLayoutEffect(() => {
     document.body.dataset.view = "setup";
     for (const id of [...Object.values(VIEW_SECTIONS), "resultActions", "appendResumesButton", "appendCallAudioButton"]) {
@@ -249,10 +229,8 @@ export function App() {
 
   const handleLanguage = (language: "zh-CN" | "en") => {
     if (language === state.language) return;
-    // 语言切换：支持 View Transition 时整页交叉淡化
-    // （React 异步渲染需 flushSync 在过渡回调内同步提交，否则新快照会读到切换前文案）；
-    // prefers-reduced-motion 或浏览器无该 API 时直接切换（浏览器回退为
-    // body 透明度淡入淡出，本版简化为立即切换，主路径与 reduced-motion 行为一致）
+    // 语言切换：支持 View Transition 时整页交叉淡化，过渡回调内用 flushSync 同步提交，
+    // 否则新快照会读到切换前文案；prefers-reduced-motion 或无该 API 时立即切换
     const reducedMotion =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -492,7 +470,7 @@ export function App() {
           void openJob(jobId);
         }}
         onOpenCall={(callId) => {
-          // 记录到 lastCall 并通知电话视图加载（seq 递增保证重复打开同一条目也触发）
+          // 记录到 lastCall 并通知电话视图加载
           localStorage.setItem("talentHub.activeTool", "phone");
           localStorage.setItem("talentHub.lastCall", callId);
           setCallOpenRequest((prev) => ({ id: callId, seq: (prev?.seq ?? 0) + 1 }));

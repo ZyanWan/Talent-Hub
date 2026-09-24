@@ -1,7 +1,7 @@
 # 简历文件解析策略（应用实现）
 
-> 本文档描述 Talent-Hub 应用中简历解析的实际实现，基于 `app/pipeline.py` 与 `app/runtime/extract_resume_text.py` 的代码事实编写，非技能工作流说明。
-> 应用内的解析是全自动的：评估流程调用 `extract_document()` 完成提取，无需人工运行命令。
+> 本文档描述 Talent Hub 简历解析的实际实现。
+> 解析是全自动的：评估流程调用 `extract_document()` 完成提取。
 
 ## 应用内解析流程
 
@@ -50,7 +50,7 @@
 `usable=False` 的简历不会进入大模型评估：
 
 - 解析结果（`method`、`page_count`、`char_count`、`error` 等）写入任务目录的 `解析清单.json`，每行对应一份简历。
-- 该简历不会产出评估结论，任务 errors 中记录原因；界面据此提示"解析不足/需人工提供文本"，不得脑补候选人信息。
+- 该简历不会产出评估结论，任务 errors 中记录原因；界面据此提示"解析不足/需人工提供文本"。
 
 ## 任务运行时的落盘位置
 
@@ -62,7 +62,7 @@
 
 ## 独立命令行工具（开发/调试用）
 
-应用运行时不需要人工调用，但 `app/runtime/` 下保留了 CLI，便于批量导出与抽查：
+`app/runtime/` 下的 CLI 供开发时批量导出与抽查：
 
 ```bash
 python -m app.runtime.extract_resume_text <简历目录> --output-dir parsed_text
