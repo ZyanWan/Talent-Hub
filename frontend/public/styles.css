@@ -31,7 +31,6 @@
   --muted: #9ca3af;
   --line: #e8eaed;
   --line-strong: #d4d7dc;
-  --blue: #333333; /* 炭黑主色（交互/进度/图标） */
   --blue-dark: #262626;
   --blue-soft: #eef4ff; /* 状态徽章浅蓝底（A 结论 / 电话运行中） */
   --focus-ring: #b0c6f0; /* 表单聚焦边框：浅蓝，低饱和不抢眼 */
@@ -45,7 +44,6 @@
   --font-regular: 400;
   --font-medium: 500;
   --font-semibold: 600;
-  --font-bold: 700;
   color: var(--ink);
   background: var(--canvas);
   font-family: var(--font-ui);
@@ -59,8 +57,7 @@ html { min-width: 320px; background: var(--canvas); overflow-y: scroll; }
 @supports (scrollbar-gutter: stable) {
   html { overflow-y: auto; scrollbar-gutter: stable; }
 }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--canvas); transition: opacity .12s cubic-bezier(.22, 1, .36, 1); }
-body.is-language-fading { opacity: 0; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--canvas); }
 ::view-transition-old(root),
 ::view-transition-new(root) { animation-duration: .24s; animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
 *::-webkit-scrollbar { width: 11px; height: 11px; }
@@ -170,7 +167,6 @@ h3 { margin: 0; font-size: 13px; line-height: 1.4; font-weight: var(--font-semib
 .send-button:active { transform: scale(.97); }
 .send-button:disabled { cursor: not-allowed; background: #d9dcdf; color: #fff; }
 .send-button svg { width: 17px; height: 17px; }
-.run-hint { min-height: 18px; margin: 15px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
 
 .primary-button, .secondary-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border-radius: 4px; font-size: 11px; font-weight: var(--font-semibold); white-space: nowrap; transition: transform .12s ease, background-color .18s ease, border-color .18s ease, opacity .18s ease; }
 .primary-button { border: 1px solid var(--ink); background: var(--ink); color: #fff; }
@@ -414,7 +410,6 @@ html:has(.preview-backdrop) {
 .history-more:disabled { cursor: wait; opacity: .25; }
 .history-more svg { width: 16px; height: 16px; }
 .history-menu { position: absolute; z-index: 4; top: 43px; right: 4px; min-width: 150px; padding: 5px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); box-shadow: 0 12px 30px rgba(0, 0, 0, .16); }
-.history-menu.opens-up { top: auto; bottom: 36px; }
 .history-menu button { width: 100%; min-height: 34px; display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 0; border-radius: 4px; background: transparent; color: var(--ink-soft); text-align: left; font-size: 11px; }
 .history-menu button:hover { background: var(--surface-hover); color: var(--ink); }
 .history-menu button.danger { color: var(--red); }

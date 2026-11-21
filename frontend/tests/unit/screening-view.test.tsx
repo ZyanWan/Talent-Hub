@@ -27,7 +27,6 @@ beforeEach(() => {
   state.selectedResumes = [];
   state.resultFilter = "all";
   state.compareSelection = new Set();
-  state.liveResultKeys = null;
   state.language = "zh-CN";
   localStorage.clear();
   fetchMock = vi.fn();
@@ -43,7 +42,6 @@ afterEach(() => {
   state.selectedResumes = [];
   state.resultFilter = "all";
   state.compareSelection = new Set();
-  state.liveResultKeys = null;
   state.language = "zh-CN";
   localStorage.clear();
 });

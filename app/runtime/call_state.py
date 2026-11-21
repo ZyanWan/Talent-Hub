@@ -1,7 +1,7 @@
-"""电话确认任务与条目的状态机：集中定义合法转换、收敛与重试规则。
+"""电话确认条目状态机：集中定义条目状态的合法转换、收敛与重试规则。
 
 条目：queued → transcribing → summarizing → done；处理中状态 → failed，failed 可重试回 queued；
-取消/中断时中间态收敛回 queued。任务：draft → running → done / failed / cancelled，后两者可重跑。
+取消/中断时中间态收敛回 queued。任务级只定义运行态集合（queued / running）。
 """
 
 from __future__ import annotations
@@ -20,11 +20,8 @@ ITEM_INTERMEDIATE = frozenset({ITEM_TRANSCRIBING, ITEM_SUMMARIZING})
 ITEM_TERMINAL = frozenset({ITEM_DONE, ITEM_FAILED, ITEM_CANCELLED})
 
 # 任务级状态
-CALL_DRAFT = "draft"
 CALL_QUEUED = "queued"
 CALL_RUNNING = "running"
-CALL_DONE = "done"
-CALL_FAILED = "failed"
 CALL_RUNNING_STATES = frozenset({CALL_QUEUED, CALL_RUNNING})
 
 # 合法条目转换表
