@@ -5,13 +5,15 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { api } from "../api/client";
 import { displayCallTitle } from "../callTitle";
-import { onChange, t } from "../i18n";
+import { fileSuffix, formatDate, formatSize, stageLabel } from "../format";
+import { t } from "../i18n";
 import { currentView, registerView } from "../router";
 import { state } from "../state";
 import { Button } from "../ui/Button";
 import { Progress } from "../ui/Progress";
 import { createCustomSelect, type CustomSelectHandle } from "../ui/customSelect";
-import { CallItemDetail, callItemStatusLabel, releaseAudioBlobs, stageLabel, type CallTask } from "./CallItemDetail";
+import { useLanguageRerender } from "../ui/useLanguageRerender";
+import { CallItemDetail, callItemStatusLabel, releaseAudioBlobs, type CallTask } from "./CallItemDetail";
 
 // ---- 类型与常量 ----
 
@@ -62,24 +64,6 @@ const SOFT_SKILL_KEYWORD_MAP: Array<{ key: string; keywords: string[] }> = [
   { key: "passion", keywords: ["热爱", "兴趣", "激情", "喜欢"] },
 ];
 
-// ---- 格式化辅助 ----
-
-function formatDate(value: string | undefined): string {
-  if (!value) return "";
-  const locale = state.language === "en" ? "en-US" : "zh-CN";
-  return new Intl.DateTimeFormat(locale, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
 function defaultCallTitle(): string {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -101,11 +85,6 @@ function callStatusBadgeClass(status: string): string {
   return map[status] || "";
 }
 
-function fileSuffix(name: string): string {
-  const index = name.lastIndexOf(".");
-  return index >= 0 ? name.slice(index).toLowerCase() : "";
-}
-
 /** 停止电话轮询（视图 exit 与切换当前任务时使用） */
 function stopCallPolling(): void {
   clearTimeout(state.callPollTimer ?? undefined);
@@ -122,8 +101,7 @@ export function PhoneView({
   onHistoryChanged,
   resetSignal = 0,
 }: PhoneViewProps) {
-  const [, forceRender] = useState(0);
-  const rerender = useCallback(() => forceRender((n) => n + 1), []);
+  const rerender = useLanguageRerender();
 
   // 新建表单
   const [title, setTitle] = useState("");
@@ -218,17 +196,6 @@ export function PhoneView({
       state.callPollTimer = null;
     };
   }, []);
-
-  // 语言切换重渲染
-  useEffect(() => {
-    let active = true;
-    onChange(() => {
-      if (active) rerender();
-    });
-    return () => {
-      active = false;
-    };
-  }, [rerender]);
 
   // 进入电话视图：按历史请求恢复任务（lastCall / callOpenRequest），无 lastCall 时保持新建表单
   useEffect(() => {

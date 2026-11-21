@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
-import sys
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
@@ -18,6 +17,7 @@ from ..config import AppSettings, SettingsStore
 from ..feishu import build_call_message, push_with_status
 from ..llm import LLMError, LLMRequestError, LLMResponseError, OpenAICompatibleClient, prompt_json
 from ..models import CallSummary
+from ..resources import read_reference
 from . import call_state
 
 
@@ -48,14 +48,6 @@ MAX_TRANSCRIPT_PROMPT_CHARS = 160000
 # 火山引擎「大模型录音文件识别（极速版）」正式版默认 5 并发；固定并发处理多个录音条目。
 # 超过该额度会触发服务端限流（错误码 55000031 服务器繁忙）。
 ITEM_CONCURRENCY = 5
-
-
-def read_reference(name: str) -> str:
-    """读取 app/resources/references 下的参考文件；打包运行时回退到 _MEIPASS 资源目录。"""
-    root = getattr(sys, "_MEIPASS", None)
-    path = Path(root) / "app" / "resources" / "references" / name if root else \
-        Path(__file__).resolve().parents[2] / "app" / "resources" / "references" / name
-    return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
 def summarize_system_prompt() -> str:
@@ -204,7 +196,7 @@ _CN_DIGITS = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五":
 _CN_UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000}
 _FULLWIDTH_MAP = {
     ord(full): ord(half)
-    for full, half in zip("，。！？；：（）“”‘’、", ",.!?;:()\"\"''、")
+    for full, half in zip("，。！？；：（）“”‘’、", ",.!?;:()\"\"''、", strict=True)
 }
 
 
@@ -602,10 +594,9 @@ class CallProcessor:
             if not text.strip():
                 raise RuntimeError("语音转写结果为空，请检查音频内容。")
             transcript_file.write_text(text, encoding="utf-8")
-            try:
+            with contextlib.suppress(OSError):
                 utterance_file.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
-            except OSError:
-                pass  # utterances 缓存非必需：写失败仅时间戳定位退化，不阻塞主流程
+            # utterances 缓存非必需：写失败仅时间戳定位退化，不阻塞主流程
         self._transition_item(
             call_id, item_id, call_state.ITEM_SUMMARIZING,
             transcript_file=transcript_name, stage="AI 整理", progress=60,

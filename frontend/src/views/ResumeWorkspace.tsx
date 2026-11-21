@@ -4,10 +4,12 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { api } from "../api/client";
-import { onChange, t } from "../i18n";
+import { fileKey, fileSuffix, formatSize } from "../format";
+import { t } from "../i18n";
 import { state } from "../state";
 import { Button } from "../ui/Button";
 import { useDialogAnimation } from "../ui/useDialogAnimation";
+import { useLanguageRerender } from "../ui/useLanguageRerender";
 
 export interface StoredResumePreview {
   jobId: string;
@@ -32,22 +34,6 @@ export interface ResumeWorkspaceProps {
 const PREVIEWABLE_IMAGE_SUFFIXES = new Set([".png", ".jpg", ".jpeg", ".webp", ".bmp"]);
 const RESUME_ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.png,.jpg,.jpeg,.webp,.tif,.tiff,.bmp";
 
-// ---- 辅助 ----
-
-function fileSuffix(name: string): string {
-  const index = name.lastIndexOf(".");
-  return index >= 0 ? name.slice(index).toLowerCase() : "";
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function fileKey(file: File): string {
-  return `${file.name}:${file.size}:${file.lastModified}`;
-}
-
 function previewScale(): number {
   return Math.min(4, 3 * (window.devicePixelRatio || 1));
 }
@@ -64,7 +50,7 @@ export function ResumeWorkspace({ open, stored, onClose, onFilesChanged }: Resum
   const [index, setIndex] = useState(0);
   const [preview, setPreview] = useState<PreviewState>({ phase: "idle" });
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [, forceRender] = useState(0);
+  const rerender = useLanguageRerender();
   const renderControllerRef = useRef<AbortController | null>(null);
   const prefetchControllerRef = useRef<AbortController | null>(null);
   const imageUrlRef = useRef<string | null>(null);
@@ -76,17 +62,6 @@ export function ResumeWorkspace({ open, stored, onClose, onFilesChanged }: Resum
   const safeIndex = total ? Math.min(index, total - 1) : 0;
   const currentFile = files[safeIndex];
   const currentName = storedMode ? stored.filename : currentFile?.name ?? "";
-
-  // 语言切换重渲染
-  useEffect(() => {
-    let active = true;
-    onChange(() => {
-      if (active) forceRender((n) => n + 1);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   // ESC 关闭（编辑类弹窗：仅关闭按钮 + ESC）
   useEffect(() => {
@@ -235,7 +210,7 @@ export function ResumeWorkspace({ open, stored, onClose, onFilesChanged }: Resum
     else if (index >= next.length) setIndex(Math.max(0, next.length - 1));
     onFilesChanged?.();
     if (!next.length) onClose();
-    else forceRender((n) => n + 1);
+    else rerender();
   };
 
   const handleAddChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -253,7 +228,7 @@ export function ResumeWorkspace({ open, stored, onClose, onFilesChanged }: Resum
       if (additions.length) {
         state.selectedResumes = [...state.selectedResumes, ...additions];
         onFilesChanged?.();
-        forceRender((n) => n + 1);
+        rerender();
       }
     }
     input.value = "";

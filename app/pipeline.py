@@ -26,6 +26,7 @@ from .models import (
     ScreeningCriteria,
 )
 from .repository import JobRepository, safe_filename, utc_now
+from .resources import read_reference
 from .runtime.build_candidate_workbook import build_workbook
 from .runtime.extract_resume_text import (
     extract_file,
@@ -34,11 +35,6 @@ from .runtime.extract_resume_text import (
     source_output_name,
 )
 from .runtime.validate_workbook import validate_workbook_detailed
-
-
-def resource_root() -> Path:
-    bundled = getattr(sys, "_MEIPASS", None)
-    return Path(bundled) if bundled else Path(__file__).resolve().parents[1]
 
 
 def atomic_write_json(path: Path, data) -> None:
@@ -54,9 +50,6 @@ def atomic_write_json(path: Path, data) -> None:
         os.replace(temp_path, path)
     finally:
         temp_path.unlink(missing_ok=True)
-
-
-ROOT = resource_root()
 
 
 DIMENSIONS = (
@@ -82,11 +75,6 @@ def criteria_fingerprint(criteria: ScreeningCriteria) -> str:
 
 EVIDENCE_ORDER = {"高": 0, "中": 1, "低": 2}
 MAX_PDF_PAGES = 100
-
-
-def read_reference(name: str) -> str:
-    path = ROOT / "app" / "resources" / "references" / name
-    return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
 def configure_tesseract(path: str) -> str:
@@ -516,9 +504,10 @@ def _has_text_anchor(
     if not text:
         return False
     normalized = normalize_for_match(text)
-    if re.search(r"\d{4,}", normalized):
-        if any(digits in normalized_resume for digits in re.findall(r"\d{4,}", normalized)):
-            return True
+    if re.search(r"\d{4,}", normalized) and any(
+        digits in normalized_resume for digits in re.findall(r"\d{4,}", normalized)
+    ):
+        return True
     segments = re.split(r"[\s,，。;；、:：/\\()（）\[\]【】\"'“”‘’—\u3000\-~]+", normalized)
     if any(len(seg) >= min_chars and seg in normalized_resume for seg in segments):
         return True
@@ -1111,7 +1100,7 @@ class EvaluationEngine:
     ):
         last_error: Exception | None = None
         prompt = user
-        for attempt in range(2):
+        for _attempt in range(2):
             try:
                 return model_type.model_validate(
                     client.chat_json(system, prompt, attempts=request_attempts)
@@ -1127,7 +1116,7 @@ class EvaluationEngine:
 
     def _evaluate_one(
         self, criteria: ScreeningCriteria, resume_file: Path, settings: AppSettings,
-        cancel_event: threading.Event, job_id: str,
+        cancel_event: threading.Event,
     ) -> tuple[CandidateEvaluation | None, dict]:
         if cancel_event.is_set():
             raise InterruptedError("用户取消了任务。")
@@ -1306,10 +1295,9 @@ class EvaluationEngine:
             if not fingerprint:
                 errors.append(f"飞书通知映射缺失：任务 {job_id}")
                 continue
-            if mode == "rescreen" or fingerprint not in excluded:
-                if fingerprint not in selected_hashes:
-                    selected.append(evaluation)
-                    selected_hashes.add(fingerprint)
+            if (mode == "rescreen" or fingerprint not in excluded) and fingerprint not in selected_hashes:
+                selected.append(evaluation)
+                selected_hashes.add(fingerprint)
         if not selected:
             return errors, False
         succeeded, push_error = push_with_status(
@@ -1369,7 +1357,7 @@ class EvaluationEngine:
             base_count = len(evaluations)
             with ThreadPoolExecutor(max_workers=settings.max_parallel, thread_name_prefix="candidate") as pool:
                 futures = {
-                    pool.submit(self._evaluate_one, criteria, path, settings, cancel_event, job_id): path
+                    pool.submit(self._evaluate_one, criteria, path, settings, cancel_event): path
                     for path in pending_paths
                 }
                 for completed, future in enumerate(as_completed(futures), start=1):

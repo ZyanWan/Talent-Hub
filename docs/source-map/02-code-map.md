@@ -14,6 +14,7 @@
 | `app/models.py` | 筛选、证据、硬性门槛和电话摘要的 Pydantic 契约 | Prompt 输出、持久化 JSON、Excel、前端字段 |
 | `app/repository.py` | `JsonStore` 通用仓储、岗位任务目录、归档、删除、文件名与路径安全 | `main.py`、`pipeline.py`、`call_repository.py` |
 | `app/call_repository.py` | 电话任务、音频身份、条目状态和通知字段持久化 | `main.py`、`phone_screening.py`、电话前端 |
+| `app/resources.py` | 打包运行时资源定位：应用根目录与参考文件读取的唯一入口 | `pipeline.py`、`phone_screening.py`、前端静态目录 |
 | `app/llm.py` | OpenAI Chat Completions 兼容请求、动态输入序列化、JSON 提取、重试、终止原因和取消 | 筛选标准、候选人评估、横向对比、电话整理 |
 | `app/pipeline.py` | 简历筛选主流程、证据与硬门槛守卫、检查点续跑、Excel 载荷和通知挂点 | Job 状态、结果 JSON、工作簿、前端进度 |
 | `app/artifact_preview.py` | Markdown 和 Excel 的限量安全预览 | 产物预览 API、`PreviewDialog` |
@@ -25,6 +26,8 @@
 | `app/runtime/speech_to_text.py` | 火山 ASR 请求、音频校验和转写渲染 | 电话处理、ASR 配置与验证 |
 | `app/runtime/phone_screening.py` | 电话转写编排、结构化整理、必填结构校验、narrative/Markdown 渲染和事实引用录音定位 | Call 状态、摘要文件、电话详情 |
 | `frontend/src/` | React + TypeScript 前端；`App.tsx` 负责外壳和协调，`views/` 负责业务视图，`ui/` 负责对话框与基础组件 | 后端路由、字段、状态枚举和前端验证 |
+| `frontend/src/format.ts` | 文件标识、体积、日期与任务环节文案的共享实现 | 视图与对话框的展示文案 |
+| `frontend/src/ui/useLanguageRerender.ts` | 语言切换后强制重渲染的共享 hook | 视图与对话框的语言文案刷新 |
 | `launcher.py` | PyInstaller 启动入口 | `app.main.main()`、打包配置 |
 | `start-app.bat` | 启动后端和 `vite build --watch`；前端依赖需已安装 | 本地开发启动 |
 | `scripts/build_windows.ps1`、`scripts/verify_windows_release.ps1` | Windows 构建、版本资源、许可证、安装器和发布烟测 | `packaging/`、`release/`、启动参数与 `/health` |
@@ -46,7 +49,7 @@
 
 | 使用范围 | 字段 |
 | --- | --- |
-| 应用协调与公共状态 | `language`、`settings`、`jobs` |
+| 应用协调与公共状态 | `language`、`settings`、`jobs`、`historyTotals` |
 | 简历筛选 | `currentJob`、`selectedResumes`、`resultFilter`、`pollTimer` |
 | 简历预览与对比 | `resumeRenderCache`、`compareSelection` |
 | 电话确认 | `currentCall`、`callPollTimer`、`pendingCallFiles` |
@@ -55,6 +58,8 @@
 
 - `frontend/src/api/client.ts` 是唯一 API client，负责 `X-App-Token`、JSON Content-Type、非 JSON 响应和 `detail` 错误透传。
 - `frontend/src/i18n/messages.ts` 是手工维护的双语消息源；新增或修改 key 时同步维护 `zh-CN` 与 `en`。`frontend/src/i18n/index.ts` 读写 `state.language`、持久化语言并广播变化。
+- `frontend/src/format.ts` 是文件标识、体积、日期和任务环节文案的唯一实现；视图与对话框从中取用，不各自维护副本。
+- `frontend/src/ui/useLanguageRerender.ts` 是语言切换后重渲染的唯一实现；视图与对话框经该 hook 订阅 i18n 广播。
 - `frontend/src/router/index.ts` 管理 screening/phone 视图生命周期；`currentView()` 是轮询丢弃跨视图响应的判断来源。各视图在自己的 `exit` 停止所属轮询。
 - `frontend/src/App.tsx` 渲染外壳、顶栏、语言、设置、任务记录与业务视图；启动 effect 请求 `GET /api/bootstrap`。筛选子页面使用 React `view` 状态和 `showSection()` 切换，router 将它们归为同一个 screening 生命周期。
 - `frontend/src/ui/SettingsDialog.tsx` 使用同一个 `buildPayload()` 构造保存、模型测试和飞书测试请求；密钥框不回填明文，空值表示保留，清除按钮提交一次性 `clear_*` 标志。

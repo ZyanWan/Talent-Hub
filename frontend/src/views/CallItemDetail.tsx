@@ -5,10 +5,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api/client";
-import { onChange, t } from "../i18n";
+import { stageLabel } from "../format";
+import { t } from "../i18n";
 import { state } from "../state";
 import { Button } from "../ui/Button";
 import { Progress } from "../ui/Progress";
+import { useLanguageRerender } from "../ui/useLanguageRerender";
 
 // ---- 类型（字段与 GET /api/calls/{id} 响应契约一致） ----
 
@@ -183,47 +185,6 @@ function callFieldStatusLabel(status: string): string {
   return map[status] || status;
 }
 
-/** 处理环节文案 */
-export function stageLabel(stage: string): string {
-  if (state.language === "zh-CN") {
-    const exactZh: Record<string, string> = {
-      "JD 已就绪": "岗位说明已就绪",
-      "解析岗位 JD": "解析岗位说明",
-      "生成并校验 Excel": "生成并校验表格",
-      "上传岗位 JD": "上传岗位说明",
-    };
-    return exactZh[stage] || stage || t("preparingTask");
-  }
-  const exact: Record<string, string> = {
-    "等待上传": "Waiting for files",
-    "JD 已就绪": "Job brief ready",
-    "等待开始": "Waiting to start",
-    "上次运行被中断": "Previous run interrupted",
-    "正在停止任务": "Stopping task",
-    "解析岗位 JD": "Parsing job brief",
-    "生成岗位筛选标准": "Building screening criteria",
-    "评估候选人": "Evaluating candidates",
-    "生成并校验 Excel": "Building and validating workbook",
-    "筛选完成": "Screening complete",
-    "已取消": "Cancelled",
-    "任务失败": "Task failed",
-    "上传岗位 JD": "Uploading job brief",
-    "等待校准筛选标准": "Awaiting criteria review",
-    "筛选标准已校准": "Criteria calibrated",
-    "准备处理": "Preparing",
-    "处理完成": "Processing complete",
-    "已完成": "Done",
-  };
-  if (exact[stage]) return exact[stage];
-  const uploaded = String(stage || "").match(/^已上传 (\d+) 份简历$/);
-  if (uploaded) return `${uploaded[1]} resumes uploaded`;
-  const evaluating = String(stage || "").match(/^评估候选人 (\d+)\/(\d+)$/);
-  if (evaluating) return `Evaluating candidates ${evaluating[1]}/${evaluating[2]}`;
-  const processing = String(stage || "").match(/^处理中 (\d+)\/(\d+)$/);
-  if (processing) return `Processing ${processing[1]}/${processing[2]}`;
-  return t("stageFallback");
-}
-
 // ---- 组件 ----
 
 /** 可折叠面板（<details> 结构） */
@@ -237,9 +198,6 @@ function CallPanel({ title, children, defaultOpen = false }: { title: string; ch
 }
 
 export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, onSaved }: CallItemDetailProps) {
-  const [, forceRender] = useState(0);
-  const rerender = useCallback(() => forceRender((n) => n + 1), []);
-
   const callId = String(call.id ?? "");
   const items = call.items || [];
   const item = items.find((entry) => String(entry.id) === String(itemId)) || null;
@@ -364,15 +322,7 @@ export function CallItemDetail({ call, itemId, onSelectItem, onClose, onToast, o
   }, [handleClose]);
 
   // 语言切换重渲染
-  useEffect(() => {
-    let active = true;
-    onChange(() => {
-      if (active) rerender();
-    });
-    return () => {
-      active = false;
-    };
-  }, [rerender]);
+  useLanguageRerender();
 
   if (!item) return null;
 

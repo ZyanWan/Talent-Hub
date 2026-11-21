@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import hmac
 import json
@@ -9,7 +10,7 @@ import re
 import threading
 import time
 from collections import deque
-from typing import Callable
+from collections.abc import Callable
 
 import httpx
 
@@ -99,28 +100,26 @@ def send_message(
                 headers={"Content-Type": "application/json"},
                 timeout=10,
             )
-        except httpx.ConnectError:
+        except httpx.ConnectError as exc:
             if attempt < 3:
                 sleep(float(2 ** (attempt - 1)))
                 continue
-            raise _safe_error("网络连接失败", attempts=attempt)
-        except httpx.TimeoutException:
+            raise _safe_error("网络连接失败", attempts=attempt) from exc
+        except httpx.TimeoutException as exc:
             if attempt < 3:
                 sleep(float(2 ** (attempt - 1)))
                 continue
-            raise _safe_error("网络响应不可确认，独立通知重试可能产生重复消息", attempts=attempt)
-        except httpx.HTTPError:
-            raise _safe_error("网络请求失败", attempts=attempt)
+            raise _safe_error("网络响应不可确认，独立通知重试可能产生重复消息", attempts=attempt) from exc
+        except httpx.HTTPError as exc:
+            raise _safe_error("网络请求失败", attempts=attempt) from exc
 
         status = response.status_code
         if status == 429 or status >= 500:
             if attempt < 3:
                 delay = float(2 ** (attempt - 1))
                 if status == 429:
-                    try:
+                    with contextlib.suppress(TypeError, ValueError):
                         delay = max(delay, float(response.headers.get("Retry-After", "")))
-                    except (TypeError, ValueError):
-                        pass
                 sleep(delay)
                 continue
             raise _safe_error("飞书临时错误", status=status, attempts=attempt)
@@ -128,8 +127,8 @@ def send_message(
             raise _safe_error("飞书请求被拒绝", status=status, attempts=attempt)
         try:
             data = response.json()
-        except ValueError:
-            raise _safe_error("飞书响应不是合法 JSON", attempts=attempt)
+        except ValueError as exc:
+            raise _safe_error("飞书响应不是合法 JSON", attempts=attempt) from exc
         raw_code = data.get("code", data.get("StatusCode"))
         try:
             code = int(raw_code) if raw_code is not None else -1
@@ -274,7 +273,3 @@ def push_with_status(settings_store: SettingsStore, build_fn: Callable[..., dict
         safe = "消息构建错误，尝试 1 次"
         logger.warning("飞书推送失败：%s", safe)
         return False, f"飞书推送失败：{safe}"
-
-
-def push_if_enabled(settings_store: SettingsStore, build_fn: Callable[..., dict], *build_args, **build_kwargs) -> str | None:
-    return push_with_status(settings_store, build_fn, *build_args, **build_kwargs)[1]

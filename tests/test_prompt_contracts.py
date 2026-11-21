@@ -512,7 +512,7 @@ class AReviewSwitchTests(unittest.TestCase):
             ),
         ):
             result, _meta = engine._evaluate_one(
-                criteria(), Path("resume.pdf"), settings, threading.Event(), "job-1"
+                criteria(), Path("resume.pdf"), settings, threading.Event()
             )
         return result, calls
 

@@ -46,7 +46,7 @@ class AppSettings:
     feishu_webhook_url: str = ""        # 飞书自定义机器人 Webhook 地址
     feishu_sign_secret: str = ""        # 飞书签名密钥，DPAPI 加密保存
 
-    def normalized(self) -> "AppSettings":
+    def normalized(self) -> AppSettings:
         base_url = self.base_url.strip().rstrip("/")
         model = self.model.strip()
         return AppSettings(

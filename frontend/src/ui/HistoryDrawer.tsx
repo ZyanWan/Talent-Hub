@@ -7,12 +7,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api/client";
 import { displayCallTitle } from "../callTitle";
-import { getLanguage, onChange, t } from "../i18n";
+import { displayJobTitle, formatDate, stageLabel } from "../format";
+import { t } from "../i18n";
 import { state } from "../state";
 import { Button } from "./Button";
 import { EmptyState } from "./EmptyState";
 import { Toast } from "./Toast";
 import { useDialogAnimation } from "./useDialogAnimation";
+import { useLanguageRerender } from "./useLanguageRerender";
 
 export type HistoryKind = "job" | "call";
 export type HistoryScope = "recent" | "archived";
@@ -52,17 +54,6 @@ interface DeleteTarget {
 
 // ---- 文案/格式化辅助 ----
 
-function formatDate(value: string | undefined): string {
-  if (!value) return "";
-  const locale = getLanguage() === "en" ? "en-US" : "zh-CN";
-  return new Intl.DateTimeFormat(locale, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
 function formatStorageSize(bytes: number): string {
   const value = Math.max(0, Number(bytes) || 0);
   if (value === 0) return "0 B";
@@ -70,50 +61,6 @@ function formatStorageSize(bytes: number): string {
   const unitIndex = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
   const amount = value / 1024 ** unitIndex;
   return `${amount.toFixed(unitIndex > 1 && amount < 10 ? 1 : 0)} ${units[unitIndex]}`;
-}
-
-function displayJobTitle(title: string): string {
-  return !title || ["岗位候选人筛选", "Candidate Screening"].includes(title) ? t("jobTitle") : title;
-}
-
-function stageLabel(stage: string | undefined): string {
-  if (getLanguage() === "zh-CN") {
-    const exactZh: Record<string, string> = {
-      "JD 已就绪": "岗位说明已就绪",
-      "解析岗位 JD": "解析岗位说明",
-      "生成并校验 Excel": "生成并校验表格",
-      "上传岗位 JD": "上传岗位说明",
-    };
-    return exactZh[stage ?? ""] || stage || t("preparingTask");
-  }
-  const exact: Record<string, string> = {
-    "等待上传": "Waiting for files",
-    "JD 已就绪": "Job brief ready",
-    "等待开始": "Waiting to start",
-    "上次运行被中断": "Previous run interrupted",
-    "正在停止任务": "Stopping task",
-    "解析岗位 JD": "Parsing job brief",
-    "生成岗位筛选标准": "Building screening criteria",
-    "评估候选人": "Evaluating candidates",
-    "生成并校验 Excel": "Building and validating workbook",
-    "筛选完成": "Screening complete",
-    "已取消": "Cancelled",
-    "任务失败": "Task failed",
-    "上传岗位 JD": "Uploading job brief",
-    "等待校准筛选标准": "Awaiting criteria review",
-    "筛选标准已校准": "Criteria calibrated",
-    "准备处理": "Preparing",
-    "处理完成": "Processing complete",
-    "已完成": "Done",
-  };
-  if (exact[stage ?? ""]) return exact[stage ?? ""];
-  const uploaded = String(stage ?? "").match(/^已上传 (\d+) 份简历$/);
-  if (uploaded) return `${uploaded[1]} resumes uploaded`;
-  const evaluating = String(stage ?? "").match(/^评估候选人 (\d+)\/(\d+)$/);
-  if (evaluating) return `Evaluating candidates ${evaluating[1]}/${evaluating[2]}`;
-  const processing = String(stage ?? "").match(/^处理中 (\d+)\/(\d+)$/);
-  if (processing) return `Processing ${processing[1]}/${processing[2]}`;
-  return t("stageFallback");
 }
 
 function statusLabel(job: HistoryItem): string {
@@ -186,7 +133,6 @@ export function HistoryDrawer({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [, forceRender] = useState(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scope = kind === "call" ? callScope : jobScope;
@@ -266,15 +212,7 @@ export function HistoryDrawer({
   }, [open]);
 
   // 语言切换时重渲染（文案 / 日期格式随语言变化）
-  useEffect(() => {
-    let active = true;
-    onChange(() => {
-      if (active) forceRender((n) => n + 1);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  useLanguageRerender();
 
   const handleClose = () => {
     onClose();

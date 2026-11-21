@@ -5,11 +5,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api/client";
-import { onChange, t } from "../i18n";
+import { t } from "../i18n";
 import { Button } from "./Button";
 import { Tag, type ConclusionGrade } from "./Tag";
 import { Toast } from "./Toast";
 import { useDialogAnimation } from "./useDialogAnimation";
+import { useLanguageRerender } from "./useLanguageRerender";
 
 export interface CompareCandidate {
   source_file: string;
@@ -51,18 +52,9 @@ export function CompareDialog({ open, jobId, candidates, onClose }: CompareDialo
   const [toast, setToast] = useState<string | null>(null);
   // 进行中对比的 cancel_key：完成/失败/取消后置空
   const cancelKeyRef = useRef<string | null>(null);
-  const [, forceRender] = useState(0);
 
   // 语言切换时重渲染
-  useEffect(() => {
-    let active = true;
-    onChange(() => {
-      if (active) forceRender((n) => n + 1);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  useLanguageRerender();
 
   /** 发起对比：body {files}（直接使用结果页已勾选候选人） */
   const launchCompare = useCallback(

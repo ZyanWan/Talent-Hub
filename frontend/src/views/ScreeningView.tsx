@@ -4,7 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { api } from "../api/client";
-import { onChange, t } from "../i18n";
+import { fileKey, formatSize, stageLabel } from "../format";
+import { t } from "../i18n";
 import { registerView, currentView } from "../router";
 import { state } from "../state";
 import { Button } from "../ui/Button";
@@ -13,6 +14,7 @@ import { EmptyState } from "../ui/EmptyState";
 import { PreviewDialog, type PreviewKind } from "../ui/PreviewDialog";
 import { Progress } from "../ui/Progress";
 import { Tag, type ConclusionGrade } from "../ui/Tag";
+import { useLanguageRerender } from "../ui/useLanguageRerender";
 import { ResumeWorkspace, type StoredResumePreview } from "./ResumeWorkspace";
 
 // ---- 类型与常量 ----
@@ -103,13 +105,6 @@ function jobView(job: Record<string, unknown> | null): string {
   return "progress";
 }
 
-// ---- 格式化辅助 ----
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
 function formatDuration(seconds: unknown): string {
   const total = Math.max(0, Math.round(Number(seconds) || 0));
   if (total < 60) return state.language === "en" ? `${total}s` : `${total} 秒`;
@@ -128,46 +123,6 @@ function jobElapsed(job: Record<string, unknown>): number {
   return Math.max(Number(job.elapsed_seconds) || 0, live);
 }
 
-function stageLabel(stage: string): string {
-  if (state.language === "zh-CN") {
-    const exactZh: Record<string, string> = {
-      "JD 已就绪": "岗位说明已就绪",
-      "解析岗位 JD": "解析岗位说明",
-      "生成并校验 Excel": "生成并校验表格",
-      "上传岗位 JD": "上传岗位说明",
-    };
-    return exactZh[stage] || stage || t("preparingTask");
-  }
-  const exact: Record<string, string> = {
-    "等待上传": "Waiting for files",
-    "JD 已就绪": "Job brief ready",
-    "等待开始": "Waiting to start",
-    "上次运行被中断": "Previous run interrupted",
-    "正在停止任务": "Stopping task",
-    "解析岗位 JD": "Parsing job brief",
-    "生成岗位筛选标准": "Building screening criteria",
-    "评估候选人": "Evaluating candidates",
-    "生成并校验 Excel": "Building and validating workbook",
-    "筛选完成": "Screening complete",
-    "已取消": "Cancelled",
-    "任务失败": "Task failed",
-    "上传岗位 JD": "Uploading job brief",
-    "等待校准筛选标准": "Awaiting criteria review",
-    "筛选标准已校准": "Criteria calibrated",
-    "准备处理": "Preparing",
-    "处理完成": "Processing complete",
-    "已完成": "Done",
-  };
-  if (exact[stage]) return exact[stage];
-  const uploaded = String(stage || "").match(/^已上传 (\d+) 份简历$/);
-  if (uploaded) return `${uploaded[1]} resumes uploaded`;
-  const evaluating = String(stage || "").match(/^评估候选人 (\d+)\/(\d+)$/);
-  if (evaluating) return `Evaluating candidates ${evaluating[1]}/${evaluating[2]}`;
-  const processing = String(stage || "").match(/^处理中 (\d+)\/(\d+)$/);
-  if (processing) return `Processing ${processing[1]}/${processing[2]}`;
-  return t("stageFallback");
-}
-
 function conclusionClass(conclusion: string): ConclusionGrade {
   return conclusion.startsWith("A") ? "a" : conclusion.startsWith("B") ? "b" : "c";
 }
@@ -176,10 +131,6 @@ function conclusionLabel(conclusion: string): string {
   if (conclusion.startsWith("A")) return t("conclusionA");
   if (conclusion.startsWith("B")) return t("conclusionB");
   return t("conclusionC");
-}
-
-function fileKey(file: File): string {
-  return `${file.name}:${file.size}:${file.lastModified}`;
 }
 
 /** 单元格文本：数组按语言分隔符连接，空值显示 missingValue */
@@ -192,8 +143,7 @@ function cellText(value: string[] | string | undefined): string {
 // ---- 组件 ----
 
 export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, resetSignal = 0 }: ScreeningViewProps) {
-  const [, forceRender] = useState(0);
-  const rerender = useCallback(() => forceRender((n) => n + 1), []);
+  const rerender = useLanguageRerender();
 
   // setup 表单
   const [jdText, setJdText] = useState("");
@@ -276,17 +226,6 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
     };
   }, []);
 
-  // 语言切换时重渲染视图文案
-  useEffect(() => {
-    let active = true;
-    onChange(() => {
-      if (active) rerender();
-    });
-    return () => {
-      active = false;
-    };
-  }, [rerender]);
-
   // 切换工具重置工作区
   useEffect(() => {
     if (!resetSignal) return;
@@ -295,7 +234,6 @@ export function ScreeningView({ view, onNavigate, onToast, onRequireSettings, re
     state.currentJob = null;
     state.selectedResumes = [];
     state.resultFilter = "all";
-    state.liveResultKeys = null;
     state.compareSelection = new Set();
     setJdText("");
     setUpload(null);

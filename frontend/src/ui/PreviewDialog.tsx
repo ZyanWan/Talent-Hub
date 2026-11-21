@@ -4,9 +4,10 @@
 
 import { createElement, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { api } from "../api/client";
-import { getLanguage, onChange, t } from "../i18n";
+import { getLanguage, t } from "../i18n";
 import { Button } from "./Button";
 import { useDialogAnimation } from "./useDialogAnimation";
+import { useLanguageRerender } from "./useLanguageRerender";
 
 export type PreviewKind = "criteria" | "workbook";
 
@@ -84,18 +85,8 @@ export function PreviewDialog({ open, jobId, kind, onClose }: PreviewDialogProps
   const [downloading, setDownloading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const requestRef = useRef<AbortController | null>(null);
-  const [, forceRender] = useState(0);
-
   // 语言切换时重渲染标题与按钮文案
-  useEffect(() => {
-    let active = true;
-    onChange(() => {
-      if (active) forceRender((n) => n + 1);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  useLanguageRerender();
 
   // 打开时加载预览：中止上一次未完成请求，卸载/重开时中止当前请求
   useEffect(() => {

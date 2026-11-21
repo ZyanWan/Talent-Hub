@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import random
@@ -41,11 +42,11 @@ def extract_json_object(content: str) -> dict[str, Any]:
         text = re.sub(r"\s*```$", "", text)
     try:
         value = json.loads(text)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
         start = text.find("{")
         end = text.rfind("}")
         if start < 0 or end <= start:
-            raise LLMError("模型响应中没有可解析的 JSON 对象。")
+            raise LLMError("模型响应中没有可解析的 JSON 对象。") from exc
         try:
             value = json.loads(text[start : end + 1])
         except json.JSONDecodeError as exc:
@@ -64,7 +65,7 @@ class OpenAICompatibleClient:
         self._aborted = False
         self._client = httpx.Client(timeout=self.settings.request_timeout)
 
-    def __enter__(self) -> "OpenAICompatibleClient":
+    def __enter__(self) -> OpenAICompatibleClient:
         return self
 
     def __exit__(self, _exc_type, _exc, _traceback) -> None:
@@ -79,10 +80,8 @@ class OpenAICompatibleClient:
     def abort(self) -> None:
         """中断当前正在进行的模型请求（可由其他线程调用）。"""
         self._aborted = True
-        try:
+        with contextlib.suppress(Exception):
             self._client.close()
-        except Exception:
-            pass
 
     def chat_json(
         self, system_prompt: str, user_prompt: str, attempts: int = 3,
@@ -158,7 +157,7 @@ class OpenAICompatibleClient:
                 attempt += 1
                 if attempt < attempts:
                     if self._cancelled():
-                        raise InterruptedError("用户取消了任务。")
+                        raise InterruptedError("用户取消了任务。") from exc
                     time.sleep(min(2 ** attempt + random.random(), 5))
             except (httpx.TimeoutException, httpx.NetworkError, httpx.ProtocolError) as exc:
                 if self._aborted:
@@ -167,7 +166,7 @@ class OpenAICompatibleClient:
                 attempt += 1
                 if attempt < attempts:
                     if self._cancelled():
-                        raise InterruptedError("用户取消了任务。")
+                        raise InterruptedError("用户取消了任务。") from exc
                     time.sleep(min(2 ** attempt + random.random(), 5))
             except LLMError:
                 # JSON 解析失败由上层携带结构约束纠正，避免重复发送同一提示。

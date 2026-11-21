@@ -71,7 +71,7 @@ def resolve_headers(sheet_data: object, sheet_name: str) -> tuple[list[str], lis
         if "_headers" in sheet_data and "_rows" in sheet_data:
             return [str(value) for value in sheet_data["_headers"]], sheet_data["_rows"]
         # A regular dict is accepted as a single-row shorthand.
-        return [str(k) for k in sheet_data.keys()], [sheet_data]
+        return [str(k) for k in sheet_data], [sheet_data]
 
     if sheet_data is None:
         return [], []

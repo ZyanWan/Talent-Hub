@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { api } from "./api/client";
+import { displayJobTitle } from "./format";
 import { onChange, setLanguage, t } from "./i18n";
 import { show as routerShow, showSection } from "./router";
 import { state } from "./state";
@@ -41,11 +42,6 @@ function jobView(job: Record<string, unknown>): string {
   if (status === "completed" || (status === "failed" && hasResults)) return "results";
   if (status === "waiting") return "criteriaReview";
   return "progress";
-}
-
-/** 视图标题：默认岗位名回退到通用标题 */
-function displayJobTitle(title: string): string {
-  return !title || ["岗位候选人筛选", "Candidate Screening"].includes(title) ? t("jobTitle") : title;
 }
 
 export function App() {

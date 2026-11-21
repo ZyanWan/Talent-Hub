@@ -14,7 +14,7 @@ import urllib.request
 import webbrowser
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -29,8 +29,9 @@ from .config import AppSettings, SettingsStore, app_data_dir
 from .feishu import build_test_message, send_message
 from .llm import LLMError, LLMRequestError, LLMResponseError, OpenAICompatibleClient, prompt_json
 from .models import CallField, CallSummary
-from .pipeline import EvaluationEngine, ROOT, ocr_status
+from .pipeline import EvaluationEngine, ocr_status
 from .repository import JobRepository
+from .resources import resource_root
 from .runtime.phone_screening import CallProcessor, render_call_summary_markdown
 
 
@@ -145,7 +146,7 @@ def validated_compare_call(
     system = compare_system_prompt()
     user = compare_user_prompt(criteria, candidates)
     last_error: Exception | None = None
-    for attempt in range(2):
+    for _attempt in range(2):
         try:
             report = CompareReport.model_validate(client.chat_json(system, user))
             validate_compare_report(report, expected)
@@ -179,8 +180,8 @@ def _render_pdf_preview(raw: bytes, scale: float) -> tuple[int, list[dict]]:
     with PDF_PREVIEW_RENDER_LOCK:
         try:
             import pypdfium2 as pdfium
-        except ImportError:
-            raise HTTPException(status_code=503, detail="PDF 渲染组件不可用")
+        except ImportError as exc:
+            raise HTTPException(status_code=503, detail="PDF 渲染组件不可用") from exc
         try:
             document = pdfium.PdfDocument(raw)
         except Exception as exc:
@@ -310,7 +311,7 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
     call_processor = CallProcessor(call_repository, settings_store)
     token = app_token or secrets.token_urlsafe(32)
     # React 前端构建产物目录（Vite 构建，需先 npm run build）
-    static_dir = ROOT / "frontend" / "dist"
+    static_dir = resource_root() / "frontend" / "dist"
 
     app = FastAPI(title="招聘工作台", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings_store = settings_store
@@ -542,7 +543,10 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
             return {**public_job(updated), "upload": {"accepted": True}}
 
     @app.post("/api/resumes/preview")
-    async def render_resume_preview(file: UploadFile = File(...), scale: float = Query(default=PDF_PREVIEW_SCALE, ge=1.0, le=4.0)):
+    async def render_resume_preview(
+        file: Annotated[UploadFile, File()],
+        scale: Annotated[float, Query(ge=1.0, le=4.0)] = PDF_PREVIEW_SCALE,
+    ):
         if Path(file.filename or "").suffix.lower() != ".pdf":
             raise HTTPException(status_code=415, detail="仅支持 PDF 文件预览")
         chunks: list[bytes] = []
@@ -942,8 +946,8 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
 
         try:
             report = await run_in_threadpool(run_compare)
-        except InterruptedError:
-            raise HTTPException(status_code=499, detail="对比请求已取消。")
+        except InterruptedError as exc:
+            raise HTTPException(status_code=499, detail="对比请求已取消。") from exc
         except (RuntimeError, LLMError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         repository.get(job_id)
@@ -951,7 +955,7 @@ def create_app(data_dir: Path | None = None, app_token: str | None = None) -> Fa
         return {"ranking": [item.model_dump() for item in report.ranking]}
 
     @app.post("/api/jobs/{job_id}/compare/cancel")
-    async def cancel_compare(job_id: str, payload: CompareCancel):
+    async def cancel_compare(payload: CompareCancel):
         with _compare_cancels_lock:
             entry = _compare_cancels.get(payload.cancel_key)
         if entry is None:
